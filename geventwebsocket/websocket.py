@@ -77,22 +77,32 @@ class WebSocketHixie(WebSocket):
         return ''.join(bytes)
 
     def receive(self):
-        read = self.fobj.read
+        if not self.fobj:
+            return
 
-        while self.fobj is not None:
-            frame_str = read(1)
+        read = wrapped_read(self.fobj)
 
-            if not frame_str:
+        frame_type = read(1)
+
+        if not frame_type:
+            # whoops, something went wrong
+            self.close()
+
+            return
+
+        if frame_type == '\x00':
+            try:
+                buf = self._read_message()
+            except:
                 self.close()
-                return
-            else:
-                frame_type = ord(frame_str)
 
-            if frame_type == 0x00:
-                bytes = self._read_message()
-                return bytes.decode("utf-8", "replace")
-            else:
-                raise WebSocketError("Received an invalid frame_type=%r" % frame_type)
+                raise
+
+            # XXX - Why the replace?
+            return buf.decode("utf-8", "replace")
+
+        raise WebSocketError("Received an invalid frame_type=%r" % (
+            ord(frame_type),))
 
 
 class WebSocketHybi(WebSocket):
