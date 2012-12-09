@@ -400,10 +400,12 @@ def wrapped_read(fobj):
     # basic sanity check
     assert hasattr(fobj, 'read') and callable(fobj.read)
 
-    def read(*args):
+    read = fobj.read
+
+    def reader(*args):
         try:
-            return fobj.read(*args)
+            return read(*args)
         except:
             return ''
 
-    return read
+    return reader
