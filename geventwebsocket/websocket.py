@@ -15,6 +15,20 @@ class WebSocket(object):
         self._writelock = Semaphore(1)
         self._write = socket.sendall
 
+    def close(self):
+        """
+        Close the fobj but not the socket, that is the responsibility of the
+        initiator.
+        """
+        if not self.fobj:
+            return
+
+        self.fobj.close()
+        self.fobj = None
+        self._write = None
+
+        self.socket = None
+
     @property
     def origin(self):
         return self.environ.get('HTTP_ORIGIN')
@@ -38,12 +52,6 @@ class WebSocketHixie(WebSocket):
 
         with self._writelock:
             self._write("\x00" + message + "\xFF")
-
-    def close(self):
-        if self.fobj is not None:
-            self.fobj.close()
-            self.fobj = None
-            self._write = None
 
     def _read_until(self):
         bytes = []
@@ -99,7 +107,7 @@ class WebSocketHybi(WebSocket):
 
     def _parse_header(self, data):
         if len(data) != 2:
-            self._close()
+            self.close(None)
             raise WebSocketError('Incomplete read while reading header: %r' % data)
 
         first_byte, second_byte = struct.unpack('!BB', data)
@@ -161,7 +169,7 @@ class WebSocketHybi(WebSocket):
             data0 = read(2)
 
             if not data0:
-                self._close()
+                self.close(None)
                 return
 
             fin, opcode, has_mask, length = self._parse_header(data0)
@@ -192,7 +200,7 @@ class WebSocketHybi(WebSocket):
 
             mask = read(4)
             if len(mask) != 4:
-                self._close()
+                self._close(None)
                 raise WebSocketError('Incomplete read while reading mask: %r' % (data0 + data1 + mask))
 
             mask = struct.unpack('!BBBB', mask)
@@ -200,7 +208,7 @@ class WebSocketHybi(WebSocket):
             if length:
                 payload = read(length)
                 if len(payload) != length:
-                    self._close()
+                    self._close(None)
                     args = (length, len(payload))
                     raise WebSocketError('Incomplete read: expected message of %s bytes, got %s bytes' % args)
             else:
@@ -247,7 +255,7 @@ class WebSocketHybi(WebSocket):
                     self.close_code = struct.unpack('!H', str(f_payload[:2]))[0]
                     self.close_message = f_payload[2:]
                 elif f_payload:
-                    self._close()
+                    self.close(None)
                     raise WebSocketError('Invalid close frame: %s %s %s' % (f_fin, f_opcode, repr(f_payload)))
                 code = self.close_code
                 if code is None or (code >= 1000 and code < 5000):
@@ -262,7 +270,7 @@ class WebSocketHybi(WebSocket):
             elif f_opcode == self.OPCODE_PONG:
                 continue
             else:
-                self._close()  # XXX should send proper reason?
+                self.close(None)  # XXX should send proper reason?
                 raise WebSocketError("Unexpected opcode=%r" % (f_opcode, ))
 
             result.extend(f_payload)
@@ -334,21 +342,34 @@ class WebSocketHybi(WebSocket):
             return self.send_frame(message, self.OPCODE_TEXT)
 
     def close(self, code=1000, message=''):
-        """Close the websocket, sending the specified code and message"""
-        if self.socket is not None:
+        """
+        Close the websocket, sending the specified code and message.
+
+        Set `code` to None if you just want to sever the connection.
+        """
+        if not self.socket:
+            # already closing/closed.
+            return
+
+        self.socket = None
+
+        if not code:
+            super(WebSocketHybi, self).close()
+
+            return
+
+        try:
             message = encode_bytes(message)
-            self.send_frame(struct.pack('!H%ds' % len(message), code, message), opcode=self.OPCODE_CLOSE)
-            self._close()
 
-    def _close(self):
-        if self.socket is not None:
-            self.socket = None
-            self._write = None
-
-            if not self._reading:
-                self.fobj.close()
-
-            self.fobj = None
+            self.send_frame(
+                struct.pack('!H%ds' % len(message), code, message),
+                opcode=self.OPCODE_CLOSE)
+        except WebSocketError:
+            # failed to write the closing frame but its ok because we're
+            # closing the socket anyway.
+            pass
+        finally:
+            super(WebSocketHybi, self).close()
 
 
 def encode_bytes(text):
