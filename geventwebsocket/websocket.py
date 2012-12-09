@@ -51,26 +51,6 @@ class WebSocketHixie(WebSocket):
             self.fobj = None
             self._write = None
 
-    def _message_length(self):
-        length = 0
-
-        while True:
-            if self.fobj is None:
-                raise WebSocketError('Connection closed unexpectedly while reading message length')
-            byte_str = self.fobj.read(1)
-
-            if not byte_str:
-                return 0
-            else:
-                byte = ord(byte_str)
-
-            if byte != 0x00:
-                length = length * 128 + (byte & 0x7f)
-                if (byte & 0x80) != 0x80:
-                    break
-
-        return length
-
     def _read_until(self):
         bytes = []
 
