@@ -58,23 +58,21 @@ class WebSocketHixie(WebSocket):
         with self._writelock:
             self._write("\x00" + message + "\xff")
 
-    def _read_message(self):
-        bytes = []
-
-        read = self.fobj.read
+    def _read_message(self, read):
+        buf = ''
 
         while True:
-            if self.fobj is None:
-                msg = ''.join(bytes)
-                raise WebSocketError('Connection closed unexpectedly while reading message: %r' % msg)
-
+            # TODO: reading 1 byte at a time is quite inefficient
             byte = read(1)
-            if ord(byte) != 0xff:
-                bytes.append(byte)
-            else:
-                break
 
-        return ''.join(bytes)
+            if not byte:
+                raise WebSocketError('Connection closed unexpectedly while '
+                    'reading message: %r' % (buf,))
+
+            if byte == '\xff':
+                return buf
+
+            buf += byte
 
     def receive(self):
         if not self.fobj:
@@ -92,7 +90,7 @@ class WebSocketHixie(WebSocket):
 
         if frame_type == '\x00':
             try:
-                buf = self._read_message()
+                buf = self._read_message(read)
             except:
                 self.close()
 
