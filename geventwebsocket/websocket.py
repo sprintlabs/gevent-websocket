@@ -1,6 +1,6 @@
 import struct
 
-from gevent.coros import Semaphore
+from gevent.lock import Semaphore
 
 from python_fixes import makefile, is_closed
 from exceptions import FrameTooLargeException, WebSocketError
