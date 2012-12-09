@@ -7,6 +7,14 @@ __all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
 
 
 class WebSocket(object):
+    __slots__ = (
+        'environ',
+        'socket',
+        'fobj',
+        '_writelock',
+        '_write'
+    )
+
     def __init__(self, socket, environ, lock_class=lock.Semaphore):
         self.environ = environ
         self.socket = socket

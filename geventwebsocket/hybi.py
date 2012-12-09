@@ -15,6 +15,13 @@ class WebSocketHybi(WebSocket):
     OPCODE_PING = 0x9
     OPCODE_PONG = 0xA
 
+    __slots__ = (
+        '_chunks',
+        'close_code',
+        'close_message',
+        '_reading'
+    )
+
     def __init__(self, socket, environ):
         super(WebSocketHybi, self).__init__(socket, environ)
 
