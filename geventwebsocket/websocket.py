@@ -53,7 +53,7 @@ class WebSocketHixie(WebSocket):
         with self._writelock:
             self._write("\x00" + message + "\xFF")
 
-    def _read_until(self):
+    def _read_message(self):
         bytes = []
 
         read = self.fobj.read
@@ -84,7 +84,7 @@ class WebSocketHixie(WebSocket):
                 frame_type = ord(frame_str)
 
             if frame_type == 0x00:
-                bytes = self._read_until()
+                bytes = self._read_message()
                 return bytes.decode("utf-8", "replace")
             else:
                 raise WebSocketError("Received an invalid frame_type=%r" % frame_type)
