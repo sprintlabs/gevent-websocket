@@ -31,19 +31,10 @@ class WebSocket(object):
     def path(self):
         return self.environ.get('PATH_INFO')
 
-    def _encode_text(self, text):
-        if not isinstance(text, basestring):
-            return str(text)
-
-        if isinstance(text, unicode):
-            return text.encode('utf-8')
-
-        return text
-
 
 class WebSocketHixie(WebSocket):
     def send(self, message):
-        message = self._encode_text(message)
+        message = encode_bytes(message)
 
         with self._writelock:
             self._write("\x00" + message + "\xFF")
@@ -345,7 +336,7 @@ class WebSocketHybi(WebSocket):
     def close(self, code=1000, message=''):
         """Close the websocket, sending the specified code and message"""
         if self.socket is not None:
-            message = self._encode_text(message)
+            message = encode_bytes(message)
             self.send_frame(struct.pack('!H%ds' % len(message), code, message), opcode=self.OPCODE_CLOSE)
             self._close()
 
@@ -358,3 +349,16 @@ class WebSocketHybi(WebSocket):
                 self.fobj.close()
 
             self.fobj = None
+
+
+def encode_bytes(text):
+    """
+    :returns: The byte string equivalent of `text`.
+    """
+    if not isinstance(text, basestring):
+        return str(text)
+
+    if isinstance(text, unicode):
+        return text.encode('utf-8')
+
+    return text
