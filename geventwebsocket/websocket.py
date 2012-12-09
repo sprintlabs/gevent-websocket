@@ -24,6 +24,10 @@ class WebSocket(object):
         return self.environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL')
 
     @property
+    def version(self):
+        return self.environ.get('HTTP_SEC_WEBSOCKET_VERSION')
+
+    @property
     def path(self):
         return self.environ.get('PATH_INFO')
 
