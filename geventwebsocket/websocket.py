@@ -32,10 +32,13 @@ class WebSocket(object):
         return self.environ.get('PATH_INFO')
 
     def _encode_text(self, text):
+        if not isinstance(text, basestring):
+            return str(text)
+
         if isinstance(text, unicode):
             return text.encode('utf-8')
-        else:
-            return text
+
+        return text
 
 
 class WebSocketHixie(WebSocket):
