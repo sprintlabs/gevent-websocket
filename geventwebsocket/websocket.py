@@ -15,9 +15,17 @@ class WebSocket(object):
         self._writelock = Semaphore(1)
         self._write = socket.sendall
 
-        self.origin = environ.get('HTTP_ORIGIN')
-        self.protocol = environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL')
-        self.path = environ.get('PATH_INFO')
+    @property
+    def origin(self):
+        return self.environ.get('HTTP_ORIGIN')
+
+    @property
+    def protocol(self):
+        return self.environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL')
+
+    @property
+    def path(self):
+        return self.environ.get('PATH_INFO')
 
     def _encode_text(self, text):
         if isinstance(text, unicode):
