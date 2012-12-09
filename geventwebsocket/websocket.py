@@ -1,6 +1,5 @@
 import struct
 
-from errno import EINTR
 from gevent.coros import Semaphore
 
 from python_fixes import makefile, is_closed
