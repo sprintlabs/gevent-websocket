@@ -8,13 +8,14 @@ from .websocket import WebSocket, encode_bytes
 __all__ = ['WebSocketHybi']
 
 
-class WebSocketHybi(WebSocket):
-    OPCODE_TEXT = 0x1
-    OPCODE_BINARY = 0x2
-    OPCODE_CLOSE = 0x8
-    OPCODE_PING = 0x9
-    OPCODE_PONG = 0xA
+OPCODE_TEXT   = 0x01
+OPCODE_BINARY = 0x02
+OPCODE_CLOSE  = 0x08
+OPCODE_PING   = 0x09
+OPCODE_PONG   = 0x0a
 
+
+class WebSocketHybi(WebSocket):
     __slots__ = (
         '_chunks',
         'close_code',
@@ -61,7 +62,7 @@ class WebSocketHybi(WebSocket):
             self.close(1002)
             raise WebSocketError('Received new fragment frame with non-zero opcode: %r' % str(data))
 
-        if len(self._chunks) > 0 and fin == 1 and (self.OPCODE_TEXT <= opcode <= self.OPCODE_BINARY):
+        if len(self._chunks) > 0 and fin == 1 and (OPCODE_TEXT <= opcode <= OPCODE_BINARY):
             self.close(1002)
             raise WebSocketError('Received new unfragmented data frame during fragmented message: %r' % str(data))
 
@@ -166,7 +167,7 @@ class WebSocketHybi(WebSocket):
 
             f_fin, f_opcode, f_payload = frame
 
-            if f_opcode in (self.OPCODE_TEXT, self.OPCODE_BINARY):
+            if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
                 if opcode is None:
                     opcode = f_opcode
                 else:
@@ -175,7 +176,7 @@ class WebSocketHybi(WebSocket):
                 if opcode is None:
                     self.close(1002)
                     raise WebSocketError('Unexpected frame with opcode=0')
-            elif f_opcode == self.OPCODE_CLOSE:
+            elif f_opcode == OPCODE_CLOSE:
                 if len(f_payload) >= 2:
                     self.close_code = struct.unpack('!H', str(f_payload[:2]))[0]
                     self.close_message = f_payload[2:]
@@ -189,10 +190,10 @@ class WebSocketHybi(WebSocket):
                     self.close(1002)
                     raise WebSocketError('Received invalid close frame: %r %r' % (code, self.close_message))
                 return
-            elif f_opcode == self.OPCODE_PING:
-                self.send_frame(f_payload, opcode=self.OPCODE_PONG)
+            elif f_opcode == OPCODE_PING:
+                self.send_frame(f_payload, opcode=OPCODE_PONG)
                 continue
-            elif f_opcode == self.OPCODE_PONG:
+            elif f_opcode == OPCODE_PONG:
                 continue
             else:
                 self.close(None)  # XXX should send proper reason?
@@ -202,9 +203,9 @@ class WebSocketHybi(WebSocket):
             if f_fin:
                 break
 
-        if opcode == self.OPCODE_TEXT:
+        if opcode == OPCODE_TEXT:
             return result, False
-        elif opcode == self.OPCODE_BINARY:
+        elif opcode == OPCODE_BINARY:
             return result, True
         else:
             raise AssertionError('internal serror in gevent-websocket: opcode=%r' % (opcode, ))
@@ -262,9 +263,9 @@ class WebSocketHybi(WebSocket):
             binary = not isinstance(message, (str, unicode))
 
         if binary:
-            return self.send_frame(message, self.OPCODE_BINARY)
+            return self.send_frame(message, OPCODE_BINARY)
         else:
-            return self.send_frame(message, self.OPCODE_TEXT)
+            return self.send_frame(message, OPCODE_TEXT)
 
     def close(self, code=1000, message=''):
         """
@@ -288,7 +289,7 @@ class WebSocketHybi(WebSocket):
 
             self.send_frame(
                 struct.pack('!H%ds' % len(message), code, message),
-                opcode=self.OPCODE_CLOSE)
+                opcode=OPCODE_CLOSE)
         except WebSocketError:
             # failed to write the closing frame but its ok because we're
             # closing the socket anyway.
