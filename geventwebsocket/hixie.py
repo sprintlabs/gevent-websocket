@@ -2,6 +2,9 @@ from .exceptions import WebSocketError
 from .websocket import WebSocket, encode_bytes, wrapped_read
 
 
+__all__ = ['WebSocketHixie']
+
+
 class WebSocketHixie(WebSocket):
     def send(self, message):
         message = encode_bytes(message)

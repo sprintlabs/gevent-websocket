@@ -3,6 +3,9 @@ from gevent import lock
 from python_fixes import makefile
 
 
+__all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
+
+
 class WebSocket(object):
     def __init__(self, socket, environ, lock_class=lock.Semaphore):
         self.environ = environ

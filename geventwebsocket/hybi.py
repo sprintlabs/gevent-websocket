@@ -5,6 +5,9 @@ from .python_fixes import is_closed
 from .websocket import WebSocket, encode_bytes
 
 
+__all__ = ['WebSocketHybi']
+
+
 class WebSocketHybi(WebSocket):
     OPCODE_TEXT = 0x1
     OPCODE_BINARY = 0x2
