@@ -16,6 +16,7 @@ class WebSocket(object):
 
 class WebSocketHixie(WebSocket):
     def __init__(self, socket, environ):
+        self.environ = environ
         self.origin = environ.get('HTTP_ORIGIN')
         self.protocol = environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL')
         self.path = environ.get('PATH_INFO')
@@ -100,6 +101,7 @@ class WebSocketHybi(WebSocket):
     OPCODE_PONG = 0xA
 
     def __init__(self, socket, environ):
+        self.environ = environ
         self.origin = environ.get('HTTP_SEC_WEBSOCKET_ORIGIN')
         self.protocol = environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL', 'unknown')
         self.path = environ.get('PATH_INFO')
