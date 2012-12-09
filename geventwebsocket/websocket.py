@@ -1,18 +1,18 @@
 import struct
 
-from gevent.lock import Semaphore
+from gevent import lock
 
 from python_fixes import makefile, is_closed
 from exceptions import FrameTooLargeException, WebSocketError
 
 
 class WebSocket(object):
-    def __init__(self, socket, environ):
+    def __init__(self, socket, environ, lock_class=lock.Semaphore):
         self.environ = environ
         self.socket = socket
 
         self.fobj = makefile(socket)
-        self._writelock = Semaphore(1)
+        self._writelock = lock_class(1)
         self._write = socket.sendall
 
     def close(self):
