@@ -51,7 +51,7 @@ class WebSocketHixie(WebSocket):
         message = encode_bytes(message)
 
         with self._writelock:
-            self._write("\x00" + message + "\xFF")
+            self._write("\x00" + message + "\xff")
 
     def _read_message(self):
         bytes = []
