@@ -200,7 +200,7 @@ class WebSocketHybi(WebSocket):
 
             mask = read(4)
             if len(mask) != 4:
-                self._close(None)
+                self.close(None)
                 raise WebSocketError('Incomplete read while reading mask: %r' % (data0 + data1 + mask))
 
             mask = struct.unpack('!BBBB', mask)
@@ -208,7 +208,7 @@ class WebSocketHybi(WebSocket):
             if length:
                 payload = read(length)
                 if len(payload) != length:
-                    self._close(None)
+                    self.close(None)
                     args = (length, len(payload))
                     raise WebSocketError('Incomplete read: expected message of %s bytes, got %s bytes' % args)
             else:
