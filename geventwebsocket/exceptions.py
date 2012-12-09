@@ -7,6 +7,12 @@ class WebSocketError(socket_error):
     """
 
 
+class ProtocolError(WebSocketError):
+    """
+    Raised if an error occurs when de/encoding the websocket protocol.
+    """
+
+
 class FrameTooLargeException(WebSocketError):
     """
     Raised if a frame is received that is too large.
