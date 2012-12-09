@@ -6,8 +6,8 @@ from socket import error as socket_error
 from urllib import quote
 
 from gevent.pywsgi import WSGIHandler
-from geventwebsocket.websocket import WebSocketHybi
 
+from .hybi import WebSocketHybi
 from .hixie import WebSocketHixie
 
 
