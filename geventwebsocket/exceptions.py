@@ -2,8 +2,12 @@ from socket import error as socket_error
 
 
 class WebSocketError(socket_error):
-    pass
+    """
+    Base class for all websocket errors.
+    """
 
 
 class FrameTooLargeException(WebSocketError):
-    pass
+    """
+    Raised if a frame is received that is too large.
+    """
