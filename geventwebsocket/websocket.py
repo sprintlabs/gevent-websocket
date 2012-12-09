@@ -7,6 +7,18 @@ from exceptions import FrameTooLargeException, WebSocketError
 
 
 class WebSocket(object):
+    def __init__(self, socket, environ):
+        self.environ = environ
+        self.socket = socket
+
+        self.fobj = makefile(socket)
+        self._writelock = Semaphore(1)
+        self._write = socket.sendall
+
+        self.origin = environ.get('HTTP_ORIGIN')
+        self.protocol = environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL')
+        self.path = environ.get('PATH_INFO')
+
     def _encode_text(self, text):
         if isinstance(text, unicode):
             return text.encode('utf-8')
@@ -15,15 +27,6 @@ class WebSocket(object):
 
 
 class WebSocketHixie(WebSocket):
-    def __init__(self, socket, environ):
-        self.environ = environ
-        self.origin = environ.get('HTTP_ORIGIN')
-        self.protocol = environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL')
-        self.path = environ.get('PATH_INFO')
-        self.fobj = socket.makefile()
-        self._writelock = Semaphore(1)
-        self._write = socket.sendall
-
     def send(self, message):
         message = self._encode_text(message)
 
@@ -101,15 +104,9 @@ class WebSocketHybi(WebSocket):
     OPCODE_PONG = 0xA
 
     def __init__(self, socket, environ):
-        self.environ = environ
-        self.origin = environ.get('HTTP_SEC_WEBSOCKET_ORIGIN')
-        self.protocol = environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL', 'unknown')
-        self.path = environ.get('PATH_INFO')
+        super(WebSocketHybi, self).__init__(socket, environ)
+
         self._chunks = bytearray()
-        self._writelock = Semaphore(1)
-        self.socket = socket
-        self._write = socket.sendall
-        self.fobj = makefile(socket)
         self.close_code = None
         self.close_message = None
         self._reading = False
