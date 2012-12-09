@@ -383,3 +383,22 @@ def encode_bytes(text):
         return text.encode('utf-8')
 
     return text
+
+
+def wrapped_read(fobj):
+    """
+    Returns a callable that will return an empty string if reading from the fobj
+    fails for _any_ reason.
+
+    `fobj` in this case is a file like object e.g. `socket.makefile()`
+    """
+    # basic sanity check
+    assert hasattr(fobj, 'read') and callable(fobj.read)
+
+    def read(*args):
+        try:
+            return fobj.read(*args)
+        except:
+            return ''
+
+    return read
