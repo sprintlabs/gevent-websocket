@@ -20,14 +20,19 @@ class WebSocket(object):
         Close the fobj but not the socket, that is the responsibility of the
         initiator.
         """
-        if not self.fobj:
+        if not self.socket:
             return
 
-        self.fobj.close()
+        self.socket = None
+
+        try:
+            self.fobj.close()
+        except:
+            # TODO: Think about logging?
+            pass
+
         self.fobj = None
         self._write = None
-
-        self.socket = None
 
     @property
     def origin(self):
