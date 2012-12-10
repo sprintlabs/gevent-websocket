@@ -34,83 +34,82 @@ class WebSocketHybi(WebSocket):
         self._read = wrapped_read(self.fobj)
         self._reading = False
 
+    def _read_header(self):
+        """
+        Return a header
+        """
+        data0 = self._read(2)
+
+        if not data0:
+            raise WebSocketError('Peer closed connection unexpectedly')
+
+        fin, opcode, has_mask, length = parse_header(data0)
+
+        if not has_mask and length:
+            raise WebSocketError('Message from client is not masked')
+
+        if length < 126:
+            return fin, opcode, has_mask, length
+
+        if length == 126:
+            data1 = self._read(2)
+
+            if len(data1) != 2:
+                raise WebSocketError('Incomplete read while reading '
+                                     '2-byte length: %r' % (data0 + data1,))
+
+            length = struct.unpack('!H', data1)[0]
+        else:
+            assert length == 127, length
+
+            data1 = self._read(8)
+
+            if len(data1) != 8:
+                raise WebSocketError('Incomplete read while reading '
+                                     '8-byte length: %r' % (data0 + data1,))
+
+            length = struct.unpack('!Q', data1)[0]
+
+        return fin, opcode, has_mask, length
+
     def _read_frame(self):
         """
         Return the next frame from the socket.
         """
-        fobj = self.fobj
+        if self._reading:
+            raise RuntimeError(
+                'Reading is not possible from multiple greenlets')
 
-        if fobj is None:
-            return
-
-        if is_closed(fobj):
-            return
-
-        read = self.fobj.read
-
-        assert not self._reading, 'Reading is not possible from multiple greenlets'
         self._reading = True
 
         try:
-            data0 = read(2)
+            fin, opcode, has_mask, length = self._read_header()
 
-            if not data0:
-                self.close(None)
-                return
+            mask = self._read(4)
 
-            fin, opcode, has_mask, length = parse_header(data0)
-
-            if not has_mask and length:
-                self.close(1002)
-                raise WebSocketError('Message from client is not masked')
-
-            if length < 126:
-                data1 = ''
-            elif length == 126:
-                data1 = read(2)
-
-                if len(data1) != 2:
-                    self.close()
-                    raise WebSocketError('Incomplete read while reading 2-byte length: %r' % (data0 + data1))
-
-                length = struct.unpack('!H', data1)[0]
-            else:
-                assert length == 127, length
-                data1 = read(8)
-
-                if len(data1) != 8:
-                    self.close()
-                    raise WebSocketError('Incomplete read while reading 8-byte length: %r' % (data0 + data1))
-
-                length = struct.unpack('!Q', data1)[0]
-
-            mask = read(4)
             if len(mask) != 4:
-                self.close(None)
-                raise WebSocketError('Incomplete read while reading mask: %r' % (data0 + data1 + mask))
+                raise WebSocketError('Incomplete read while reading '
+                                     'mask: %r' % (mask,))
 
             mask = struct.unpack('!BBBB', mask)
 
-            if length:
-                payload = read(length)
-                if len(payload) != length:
-                    self.close(None)
-                    args = (length, len(payload))
-                    raise WebSocketError('Incomplete read: expected message of %s bytes, got %s bytes' % args)
-            else:
-                payload = ''
+            if not length:
+                return fin, opcode, ''
 
-            if payload:
-                payload = bytearray(payload)
+            payload = bytearray(self._read(length))
 
-                for i in xrange(len(payload)):
-                    payload[i] = payload[i] ^ mask[i % 4]
+            if len(payload) != length:
+                args = (length, len(payload))
 
-            return fin, opcode, payload
+                raise WebSocketError('Incomplete read: expected message '
+                                     'of %s bytes, got %s bytes' % args)
+
+            for i in xrange(length):
+                payload[i] = payload[i] ^ mask[i % 4]
+
+            return fin, opcode, str(payload)
         finally:
             self._reading = False
-            if self.fobj is None:
-                fobj.close()
 
     def _read_message(self):
         """Return the next text or binary message from the socket."""
