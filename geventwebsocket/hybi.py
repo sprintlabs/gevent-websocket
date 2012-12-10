@@ -2,7 +2,7 @@ import struct
 
 from .exceptions import WebSocketError, FrameTooLargeException, ProtocolError
 from .python_fixes import is_closed
-from .websocket import WebSocket, encode_bytes
+from .websocket import WebSocket, encode_bytes, wrapped_read
 
 
 __all__ = ['WebSocketHybi']
@@ -22,6 +22,7 @@ class WebSocketHybi(WebSocket):
     __slots__ = (
         'close_code',
         'close_message',
+        '_read',
         '_reading'
     )
 
@@ -30,6 +31,7 @@ class WebSocketHybi(WebSocket):
 
         self.close_code = None
         self.close_message = None
+        self._read = wrapped_read(self.fobj)
         self._reading = False
 
     def _receive_frame(self):
@@ -232,6 +234,7 @@ class WebSocketHybi(WebSocket):
             return
 
         self.socket = None
+        self._read = None
 
         if not code:
             super(WebSocketHybi, self).close()
