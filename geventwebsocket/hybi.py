@@ -34,7 +34,7 @@ class WebSocketHybi(WebSocket):
         self._read = wrapped_read(self.fobj)
         self._reading = False
 
-    def _receive_frame(self):
+    def _read_frame(self):
         """
         Return the next frame from the socket.
         """
@@ -119,7 +119,8 @@ class WebSocketHybi(WebSocket):
         result = bytearray()
 
         while True:
-            frame = self._receive_frame()
+            frame = self._read_frame()
+
             if frame is None:
                 if result:
                     raise WebSocketError('Peer closed connection unexpectedly')
