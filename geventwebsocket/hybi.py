@@ -190,7 +190,7 @@ class WebSocketHybi(WebSocket):
 
         try:
             return message.decode('utf-8')
-        except UnicodeDecodeError:
+        except ValueError:
             self.close(1007)
 
             raise
