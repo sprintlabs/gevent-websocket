@@ -14,6 +14,9 @@ OPCODE_CLOSE = 0x08
 OPCODE_PING = 0x09
 OPCODE_PONG = 0x0a
 
+# bitwise mask that will determine the reserved bits for a frame header
+HEADER_RSV_MASK = 0x40 | 0x20 | 0x10
+
 
 class WebSocketHybi(WebSocket):
     __slots__ = (
@@ -32,47 +35,16 @@ class WebSocketHybi(WebSocket):
         self._reading = False
 
     def _parse_header(self, data):
-        if len(data) != 2:
-            self.close(None)
-            raise WebSocketError('Incomplete read while reading header: %r' % data)
+        fin, opcode, has_mask, length = parse_header(data)
 
-        first_byte, second_byte = struct.unpack('!BB', data)
+        if self._chunks:
+            if fin == 0 and not opcode:
+                raise WebSocketError(
+                    'Received new fragment with non-zero opcode: %r' % (data,))
 
-        fin = (first_byte >> 7) & 1
-        rsv1 = (first_byte >> 6) & 1
-        rsv2 = (first_byte >> 5) & 1
-        rsv3 = (first_byte >> 4) & 1
-        opcode = first_byte & 0xf
-
-        # frame-fin = %x0 ; more frames of this message follow
-        #           / %x1 ; final frame of this message
-
-        # frame-rsv1 = %x0 ; 1 bit, MUST be 0 unless negotiated otherwise
-        # frame-rsv2 = %x0 ; 1 bit, MUST be 0 unless negotiated otherwise
-        # frame-rsv3 = %x0 ; 1 bit, MUST be 0 unless negotiated otherwise
-        if rsv1 or rsv2 or rsv3:
-            self.close(1002)
-            raise WebSocketError('Received frame with non-zero reserved bits: %r' % str(data))
-
-        if opcode > 0x7 and fin == 0:
-            self.close(1002)
-            raise WebSocketError('Received fragmented control frame: %r' % str(data))
-
-        if len(self._chunks) > 0 and fin == 0 and not opcode:
-            self.close(1002)
-            raise WebSocketError('Received new fragment frame with non-zero opcode: %r' % str(data))
-
-        if len(self._chunks) > 0 and fin == 1 and (OPCODE_TEXT <= opcode <= OPCODE_BINARY):
-            self.close(1002)
-            raise WebSocketError('Received new unfragmented data frame during fragmented message: %r' % str(data))
-
-        has_mask = (second_byte >> 7) & 1
-        length = (second_byte) & 0x7f
-
-        # Control frames MUST have a payload length of 125 bytes or less
-        if opcode > 0x7 and length > 125:
-            self.close(1002)
-            raise FrameTooLargeException("Control frame payload cannot be larger than 125 bytes: %r" % str(data))
+            if fin == 1 and (OPCODE_TEXT <= opcode <= OPCODE_BINARY):
+                raise WebSocketError('Received new unfragmented data frame '
+                                     'during fragmented message: %r' % (data,))
 
         return fin, opcode, has_mask, length
 
@@ -296,3 +268,31 @@ class WebSocketHybi(WebSocket):
             pass
         finally:
             super(WebSocketHybi, self).close()
+
+
+def parse_header(data):
+    if len(data) != 2:
+        raise ValueError
+
+    first_byte, second_byte = struct.unpack('!BB', data)
+
+    if first_byte & HEADER_RSV_MASK:
+        # one of the reserved bits is set, bail
+        raise WebSocketError(
+            'Received frame with non-zero reserved bits: %r' % (data,))
+
+    fin = first_byte & 0x80 == 0x80
+    opcode = first_byte & 0x0f
+
+    if opcode > 0x07 and fin == 0:
+        raise WebSocketError('Received fragmented control frame: %r' % (data,))
+
+    has_mask = second_byte & 0x80 == 0x80
+    length = second_byte & 0x7f
+
+    # Control frames MUST have a payload length of 125 bytes or less
+    if opcode > 0x07 and length > 125:
+        raise FrameTooLargeException('Control frame payload cannot be larger '
+                                     'than 125 bytes: %r' % (data,))
+
+    return fin, opcode, has_mask, length
