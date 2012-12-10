@@ -230,14 +230,15 @@ class WebSocketHybi(WebSocket):
                 self._write(combined)
 
     def send(self, message, binary=None):
-        """Send a frame over the websocket with message as its payload"""
+        """
+        Send a frame over the websocket with message as its payload
+        """
         if binary is None:
-            binary = not isinstance(message, (str, unicode))
+            binary = isinstance(message, str)
 
-        if binary:
-            return self.send_frame(message, OPCODE_BINARY)
-        else:
-            return self.send_frame(message, OPCODE_TEXT)
+        opcode = OPCODE_BINARY if binary else OPCODE_TEXT
+
+        return self.send_frame(message, opcode)
 
     def close(self, code=1000, message=''):
         """
