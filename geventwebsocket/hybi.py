@@ -20,7 +20,6 @@ HEADER_RSV_MASK = 0x40 | 0x20 | 0x10
 
 class WebSocketHybi(WebSocket):
     __slots__ = (
-        '_chunks',
         'close_code',
         'close_message',
         '_reading'
@@ -29,24 +28,9 @@ class WebSocketHybi(WebSocket):
     def __init__(self, socket, environ):
         super(WebSocketHybi, self).__init__(socket, environ)
 
-        self._chunks = bytearray()
         self.close_code = None
         self.close_message = None
         self._reading = False
-
-    def _parse_header(self, data):
-        fin, opcode, has_mask, length = parse_header(data)
-
-        if self._chunks:
-            if fin == 0 and not opcode:
-                raise WebSocketError(
-                    'Received new fragment with non-zero opcode: %r' % (data,))
-
-            if fin == 1 and (OPCODE_TEXT <= opcode <= OPCODE_BINARY):
-                raise WebSocketError('Received new unfragmented data frame '
-                                     'during fragmented message: %r' % (data,))
-
-        return fin, opcode, has_mask, length
 
     def receive_frame(self):
         """Return the next frame from the socket."""
@@ -70,7 +54,7 @@ class WebSocketHybi(WebSocket):
                 self.close(None)
                 return
 
-            fin, opcode, has_mask, length = self._parse_header(data0)
+            fin, opcode, has_mask, length = parse_header(data0)
 
             if not has_mask and length:
                 self.close(1002)
