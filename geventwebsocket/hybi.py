@@ -112,63 +112,63 @@ class WebSocketHybi(WebSocket):
             self._reading = False
 
     def _read_message(self):
-        """Return the next text or binary message from the socket."""
-
+        """
+        Return the next text or binary message from the socket.
+        """
         opcode = None
-        result = bytearray()
+        message = ''
 
         while True:
-            frame = self._read_frame()
-
-            if frame is None:
-                if result:
-                    raise WebSocketError('Peer closed connection unexpectedly')
-                return
-
-            f_fin, f_opcode, f_payload = frame
+            fin, f_opcode, payload = self._read_frame()
 
             if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
-                if opcode is None:
-                    opcode = f_opcode
-                else:
-                    raise WebSocketError('The opcode in non-fin frame is expected to be zero, got %r' % (f_opcode, ))
+                if opcode:
+                    raise ProtocolError('The opcode in non-fin frame is '
+                                        'expected to be zero, got %r' % (
+                                        f_opcode,))
+
+                opcode = f_opcode
             elif not f_opcode:
-                if opcode is None:
-                    self.close(1002)
-                    raise WebSocketError('Unexpected frame with opcode=0')
+                if not opcode is None:
+                    raise ProtocolError('Unexpected frame with opcode=0')
             elif f_opcode == OPCODE_CLOSE:
-                if len(f_payload) >= 2:
-                    self.close_code = struct.unpack('!H', str(f_payload[:2]))[0]
-                    self.close_message = f_payload[2:]
-                elif f_payload:
-                    self.close(None)
-                    raise WebSocketError('Invalid close frame: %s %s %s' % (f_fin, f_opcode, repr(f_payload)))
+                if len(payload) >= 2:
+                    self.close_code = struct.unpack('!H', str(payload[:2]))[0]
+                    self.close_message = payload[2:]
+                elif payload:
+                    raise ProtocolError('Invalid close frame: %r %r %r' % (
+                        fin, f_opcode, payload))
+
                 code = self.close_code
-                if code is None or (code >= 1000 and code < 5000):
+
+                if code is None or (1000 < code >= 5000):
                     self.close()
-                else:
-                    self.close(1002)
-                    raise WebSocketError('Received invalid close frame: %r %r' % (code, self.close_message))
-                return
+
+                    return
+
+                raise ProtocolError('Received invalid close frame: %r %r' % (
+                    code, self.close_message))
+
             elif f_opcode == OPCODE_PING:
-                self.send_frame(f_payload, opcode=OPCODE_PONG)
+                self.send_frame(payload, OPCODE_PONG)
                 continue
             elif f_opcode == OPCODE_PONG:
                 continue
             else:
-                self.close(None)  # XXX should send proper reason?
-                raise WebSocketError("Unexpected opcode=%r" % (f_opcode, ))
+                raise ProtocolError("Unexpected opcode=%r" % (f_opcode,))
 
-            result.extend(f_payload)
-            if f_fin:
+            message += payload
+
+            if fin:
                 break
 
         if opcode == OPCODE_TEXT:
-            return result, False
+            return message, False
         elif opcode == OPCODE_BINARY:
-            return result, True
-        else:
-            raise AssertionError('internal serror in gevent-websocket: opcode=%r' % (opcode, ))
+            return message, True
+
+        raise RuntimeError('internal serror in gevent-websocket: opcode=%r' % (
+            opcode,))
 
     def receive(self):
         try:
