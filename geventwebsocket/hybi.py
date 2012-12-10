@@ -8,11 +8,11 @@ from .websocket import WebSocket, encode_bytes
 __all__ = ['WebSocketHybi']
 
 
-OPCODE_TEXT   = 0x01
+OPCODE_TEXT = 0x01
 OPCODE_BINARY = 0x02
-OPCODE_CLOSE  = 0x08
-OPCODE_PING   = 0x09
-OPCODE_PONG   = 0x0a
+OPCODE_CLOSE = 0x08
+OPCODE_PING = 0x09
+OPCODE_PONG = 0x0a
 
 
 class WebSocketHybi(WebSocket):
