@@ -1,6 +1,6 @@
 import struct
 
-from .exceptions import WebSocketError, FrameTooLargeException
+from .exceptions import WebSocketError, FrameTooLargeException, ProtocolError
 from .python_fixes import is_closed
 from .websocket import WebSocket, encode_bytes
 
@@ -183,19 +183,31 @@ class WebSocketHybi(WebSocket):
             raise AssertionError('internal serror in gevent-websocket: opcode=%r' % (opcode, ))
 
     def receive(self):
-        result = self._receive()
+        try:
+            result = self._receive()
+        except ProtocolError:
+            self.close(1002)
+
+            raise
+        except:
+            self.close(None)
+
+            raise
+
         if not result:
-            return result
+            return
 
         message, is_binary = result
+
         if is_binary:
             return message
-        else:
-            try:
-                return message.decode('utf-8')
-            except ValueError:
-                self.close(1007)
-                raise
+
+        try:
+            return message.decode('utf-8')
+        except UnicodeDecodeError:
+            self.close(1007)
+
+            raise
 
     def send_frame(self, message, opcode):
         """
