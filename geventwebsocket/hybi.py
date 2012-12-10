@@ -198,36 +198,19 @@ class WebSocketHybi(WebSocket):
                 raise
 
     def send_frame(self, message, opcode):
-        """Send a frame over the websocket with message as its payload"""
-
-        if self.socket is None:
+        """
+        Send a frame over the websocket with message as its payload
+        """
+        if not self.socket:
             raise WebSocketError('The connection was closed')
 
-        header = chr(0x80 | opcode)
+        with self._writelock:
+            try:
+                self._write(encode_header(message, opcode) + message)
+            except Exception:
+                self.close(None)
 
-        if isinstance(message, unicode):
-            message = message.encode('utf-8')
-
-        msg_length = len(message)
-
-        if msg_length < 126:
-            header += chr(msg_length)
-        elif msg_length < (1 << 16):
-            header += chr(126) + struct.pack('!H', msg_length)
-        elif msg_length < (1 << 63):
-            header += chr(127) + struct.pack('!Q', msg_length)
-        else:
-            raise FrameTooLargeException()
-
-        try:
-            combined = header + message
-        except TypeError:
-            with self._writelock:
-                self._write(header)
-                self._write(message)
-        else:
-            with self._writelock:
-                self._write(combined)
+                raise
 
     def send(self, message, binary=None):
         """
@@ -297,3 +280,20 @@ def parse_header(data):
                                      'than 125 bytes: %r' % (data,))
 
     return fin, opcode, has_mask, length
+
+
+def encode_header(message, opcode):
+    header = chr(0x80 | opcode)
+    message = encode_bytes(message)
+    msg_length = len(message)
+
+    if msg_length < 126:
+        header += chr(msg_length)
+    elif msg_length < (1 << 16):
+        header += '\x7e' + struct.pack('!H', msg_length)
+    elif msg_length < (1 << 63):
+        header += '\x7f' + struct.pack('!Q', msg_length)
+    else:
+        raise FrameTooLargeException
+
+    return header
