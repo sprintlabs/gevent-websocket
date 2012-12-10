@@ -108,7 +108,7 @@ class WebSocketHybi(WebSocket):
             if self.fobj is None:
                 fobj.close()
 
-    def _receive(self):
+    def _read_message(self):
         """Return the next text or binary message from the socket."""
 
         opcode = None
@@ -168,7 +168,7 @@ class WebSocketHybi(WebSocket):
 
     def receive(self):
         try:
-            result = self._receive()
+            result = self._read_message()
         except ProtocolError:
             self.close(1002)
 
