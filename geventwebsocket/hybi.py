@@ -1,7 +1,6 @@
 import struct
 
 from .exceptions import WebSocketError, FrameTooLargeException, ProtocolError
-from .python_fixes import is_closed
 from .websocket import WebSocket, encode_bytes, wrapped_read
 
 
