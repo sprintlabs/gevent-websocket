@@ -29,6 +29,10 @@ class WebSocketHandler(WSGIHandler):
     GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     SUPPORTED_VERSIONS = ('13', '8', '7')
 
+    @property
+    def ws_url(self):
+        return reconstruct_url(self.environ)
+
     def run_application(self):
         environ = self.environ
         upgrade = environ.get('HTTP_UPGRADE', '').lower()
