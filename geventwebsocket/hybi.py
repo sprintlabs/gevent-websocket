@@ -24,7 +24,7 @@ class WebSocketHybi(WebSocket):
         'close_code',
         'close_message',
         '_read',
-        '_reading'
+        '_readlock'
     )
 
     def __init__(self, socket, environ):
@@ -33,7 +33,7 @@ class WebSocketHybi(WebSocket):
         self.close_code = None
         self.close_message = None
         self._read = wrapped_read(self.fobj)
-        self._reading = lock.Semaphore(1)
+        self._readlock = lock.Semaphore(1)
 
     def _read_header(self):
         """
@@ -127,7 +127,7 @@ class WebSocketHybi(WebSocket):
         message = ''
 
         while True:
-            with self._reading:
+            with self._readlock:
                 fin, f_opcode, payload = self._read_frame()
 
             if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
