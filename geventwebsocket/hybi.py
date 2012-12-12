@@ -52,7 +52,7 @@ class WebSocketHybi(WebSocket):
         if not data0:
             raise exc.WebSocketError('Peer closed connection unexpectedly')
 
-        fin, opcode, has_mask, length = parse_header(data0)
+        fin, opcode, has_mask, length = decode_header(data0)
 
         if not has_mask and length:
             raise exc.WebSocketError('Message from client is not masked')
@@ -273,7 +273,7 @@ class WebSocketHybi(WebSocket):
             super(WebSocketHybi, self).close()
 
 
-def parse_header(data):
+def decode_header(data):
     if len(data) != 2:
         raise ValueError
 
