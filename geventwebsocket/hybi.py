@@ -35,7 +35,17 @@ class WebSocketHybi(WebSocket):
 
     def _read_header(self):
         """
-        Return a header
+        Receive and decode a Hybi WebSocket header.
+
+        As with all other private methods, if there is an error, no attempt will
+        be made to clean up the socket.
+
+        :returns: A tuple containing::
+            fin: Whether the associated data with this header considers the
+                frame complete.
+            opcode: The message type.
+            has_mask: Whether the payload contains mask data.
+            length: The length of the payload.
         """
         data0 = self._read(2)
 
