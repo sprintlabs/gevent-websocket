@@ -46,23 +46,20 @@ class WebSocketHandler(WSGIHandler):
     def handle_websocket(self):
         environ = self.environ
 
-        try:
-            if environ.get("HTTP_SEC_WEBSOCKET_VERSION"):
-                self.close_connection = True
-                result = self._handle_hybi()
-            elif environ.get("HTTP_ORIGIN"):
-                self.close_connection = True
-                result = self._handle_hixie()
+        if environ.get("HTTP_SEC_WEBSOCKET_VERSION"):
+            self.close_connection = True
+            result = self._handle_hybi()
+        elif environ.get("HTTP_ORIGIN"):
+            self.close_connection = True
+            result = self._handle_hixie()
 
-            self.result = []
-            if not result:
-                return
-
-            if not hasattr(self, 'prevent_wsgi_call'):
-                self.application(environ, self._fake_start_response)
+        if not result:
             return []
-        finally:
-            self.log_request()
+
+        if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
+            return []
+
+        return self.application(environ, self._fake_start_response)
 
     def _handle_hybi(self):
         environ = self.environ
