@@ -197,9 +197,9 @@ class WebSocketHandler(WSGIHandler):
         self.socket.sendall(msg)
         self.headers_sent = True
 
-    def respond(self, status, headers=[]):
+    def respond(self, status, headers=None):
         self.close_connection = True
-        self._send_reply(status, headers)
+        self._send_reply(status, headers or [])
 
         if self.socket is not None:
             try:
