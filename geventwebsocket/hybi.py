@@ -310,9 +310,16 @@ def decode_header(data):
     return fin, opcode, has_mask, length
 
 
-def encode_header(message, opcode):
+def encode_header(bytes, opcode):
+    """
+    Encodes a Hybi header.
+
+    :param bytes: The payload of the header.
+    :param opcode: The opcode of the header.
+    :return: A bytestring encoded header.
+    """
     header = chr(0x80 | opcode)
-    msg_length = len(message)
+    msg_length = len(bytes)
 
     if msg_length < 126:
         header += chr(msg_length)
