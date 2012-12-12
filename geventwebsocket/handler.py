@@ -13,7 +13,7 @@ from .hixie import WebSocketHixie
 
 class WebSocketHandler(WSGIHandler):
     """Automatically upgrades the connection to websockets.
-    
+
     To prevent the WebSocketHandler to call the underlying WSGI application,
     but only setup the WebSocket negotiations, do:
 
@@ -36,35 +36,37 @@ class WebSocketHandler(WSGIHandler):
             connection = environ.get('HTTP_CONNECTION', '').lower()
 
             if connection == 'upgrade':
-                self.result = self.handle_websocket() or []
+                if self.maybe_handle_websocket():
+                    # the request was handled, probably with an error status
 
-                self.process_result()
+                    self.result = self.result or []
+                    self.process_result()
 
-                return
+                    return
 
-        return super(WebSocketHandler, self).run_application()
-
-    def _fake_start_response(self, *args, **kwargs):
-        pass
-
-    def handle_websocket(self):
-        environ = self.environ
-        handled = None
-
-        if environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
-            handled = self._handle_hybi()
-        elif environ.get('HTTP_ORIGIN'):
-            handled = self._handle_hixie()
-
-        if not handled:
-            return
-
+        # from this point a valid websocket object is available in
+        # self.environ['websocket']
         self.close_connection = True
 
         if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
             return
 
-        return self.application(environ, self._fake_start_response)
+        # since we're now a websocket connection, we don't care what the
+        # application actually responds with for the http response
+        self.application(self.environ, self._fake_start_response)
+
+    def _fake_start_response(self, *args, **kwargs):
+        pass
+
+    def maybe_handle_websocket(self):
+        environ = self.environ
+
+        if environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
+            return self._handle_hybi()
+        elif environ.get('HTTP_ORIGIN'):
+            return self._handle_hixie()
+
+        return False
 
     def _handle_hybi(self):
         environ = self.environ
