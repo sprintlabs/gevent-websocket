@@ -1,5 +1,7 @@
 import struct
 
+from gevent import lock
+
 from . import exceptions as exc
 from .websocket import WebSocket, encode_bytes, wrapped_read
 
@@ -31,7 +33,7 @@ class WebSocketHybi(WebSocket):
         self.close_code = None
         self.close_message = None
         self._read = wrapped_read(self.fobj)
-        self._reading = False
+        self._reading = lock.Semaphore(1)
 
     def _read_header(self):
         """
@@ -125,16 +127,8 @@ class WebSocketHybi(WebSocket):
         message = ''
 
         while True:
-            if self._reading:
-                raise RuntimeError(
-                    'Reading is not possible from multiple greenlets')
-
-            self._reading = True
-
-            try:
+            with self._reading:
                 fin, f_opcode, payload = self._read_frame()
-            finally:
-                self._reading = False
 
             if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
                 if opcode:
