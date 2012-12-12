@@ -68,12 +68,11 @@ class WebSocketHandler(WSGIHandler):
         pass
 
     def upgrade_websocket(self):
-        environ = self.environ
         result = None
 
-        if environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
+        if self.environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
             result = self._handle_hybi()
-        elif environ.get('HTTP_ORIGIN'):
+        elif self.environ.get('HTTP_ORIGIN'):
             result = self._handle_hixie()
 
         if self.status and not self.status.startswith('101 '):
