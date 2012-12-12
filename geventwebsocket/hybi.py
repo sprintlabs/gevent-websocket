@@ -176,6 +176,7 @@ class WebSocketHybi(WebSocket):
 
             elif f_opcode == OPCODE_PING:
                 self.send_frame(payload, OPCODE_PONG)
+
                 continue
             elif f_opcode == OPCODE_PONG:
                 continue
