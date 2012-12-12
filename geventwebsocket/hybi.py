@@ -32,8 +32,6 @@ class ConnectionClosed(Exception):
 
 class WebSocketHybi(WebSocket):
     __slots__ = (
-        'close_code',
-        'close_message',
         '_read',
         '_readlock'
     )
@@ -41,8 +39,6 @@ class WebSocketHybi(WebSocket):
     def __init__(self, socket, environ):
         super(WebSocketHybi, self).__init__(socket, environ)
 
-        self.close_code = None
-        self.close_message = None
         self._read = wrapped_read(self.fobj)
         self._readlock = lock.Semaphore(1)
 
