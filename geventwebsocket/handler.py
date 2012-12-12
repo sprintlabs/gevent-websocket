@@ -3,7 +3,7 @@ import re
 import struct
 from hashlib import md5, sha1
 from socket import error as socket_error
-from urllib import quote
+import urlparse
 
 from gevent.pywsgi import WSGIHandler
 
@@ -220,28 +220,49 @@ class WebSocketHandler(WSGIHandler):
 
 
 def reconstruct_url(environ):
-    secure = environ['wsgi.url_scheme'] == 'https'
+    """
+    Build a WebSocket url based on the supplied environ dict.
+
+    Will return a url of the form:
+
+        ws://host:port/path?query
+    """
+    secure = environ['wsgi.url_scheme'].lower() == 'https'
+
     if secure:
-        url = 'wss://'
+        scheme = 'wss://'
     else:
-        url = 'ws://'
+        scheme = 'ws://'
 
-    if environ.get('HTTP_HOST'):
-        url += environ['HTTP_HOST']
+    host = environ.get('HTTP_HOST', None)
+
+    if not host:
+        host = environ['SERVER_NAME']
+
+    port = None
+    server_port = environ['SERVER_PORT']
+
+    if secure:
+        if server_port != '443':
+            port = server_port
     else:
-        url += environ['SERVER_NAME']
+        if server_port != '80':
+            port = server_port
 
-        if secure:
-            if environ['SERVER_PORT'] != '443':
-                url += ':' + environ['SERVER_PORT']
-        else:
-            if environ['SERVER_PORT'] != '80':
-                url += ':' + environ['SERVER_PORT']
+    netloc = host
 
-    url += quote(environ.get('SCRIPT_NAME', ''))
-    url += quote(environ.get('PATH_INFO', ''))
+    if port:
+        netloc = host + ':' + port
 
-    if environ.get('QUERY_STRING'):
-        url += '?' + environ['QUERY_STRING']
+    path = environ.get('SCRIPT_NAME', '') + environ.get('PATH_INFO', '')
 
-    return url
+    query = environ['QUERY_STRING']
+
+    return urlparse.urlunparse((
+        scheme,
+        netloc,
+        path,
+        '',  # params
+        query,
+        '',  # fragment
+    ))
