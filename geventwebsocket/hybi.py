@@ -1,6 +1,6 @@
 import struct
 
-from .exceptions import WebSocketError, FrameTooLargeException, ProtocolError
+from . import exceptions as exc
 from .websocket import WebSocket, encode_bytes, wrapped_read
 
 
@@ -40,12 +40,12 @@ class WebSocketHybi(WebSocket):
         data0 = self._read(2)
 
         if not data0:
-            raise WebSocketError('Peer closed connection unexpectedly')
+            raise exc.WebSocketError('Peer closed connection unexpectedly')
 
         fin, opcode, has_mask, length = parse_header(data0)
 
         if not has_mask and length:
-            raise WebSocketError('Message from client is not masked')
+            raise exc.WebSocketError('Message from client is not masked')
 
         if length < 126:
             return fin, opcode, has_mask, length
@@ -54,8 +54,8 @@ class WebSocketHybi(WebSocket):
             data1 = self._read(2)
 
             if len(data1) != 2:
-                raise WebSocketError('Incomplete read while reading '
-                                     '2-byte length: %r' % (data0 + data1,))
+                raise exc.WebSocketError('Incomplete read while reading '
+                                         '2-byte length: %r' % (data0 + data1,))
 
             length = struct.unpack('!H', data1)[0]
         else:
@@ -64,8 +64,8 @@ class WebSocketHybi(WebSocket):
             data1 = self._read(8)
 
             if len(data1) != 8:
-                raise WebSocketError('Incomplete read while reading '
-                                     '8-byte length: %r' % (data0 + data1,))
+                raise exc.WebSocketError('Incomplete read while reading '
+                                         '8-byte length: %r' % (data0 + data1,))
 
             length = struct.unpack('!Q', data1)[0]
 
@@ -87,8 +87,8 @@ class WebSocketHybi(WebSocket):
             mask = self._read(4)
 
             if len(mask) != 4:
-                raise WebSocketError('Incomplete read while reading '
-                                     'mask: %r' % (mask,))
+                raise exc.WebSocketError('Incomplete read while reading '
+                                         'mask: %r' % (mask,))
 
             mask = struct.unpack('!BBBB', mask)
 
@@ -100,8 +100,8 @@ class WebSocketHybi(WebSocket):
             if len(payload) != length:
                 args = (length, len(payload))
 
-                raise WebSocketError('Incomplete read: expected message '
-                                     'of %s bytes, got %s bytes' % args)
+                raise exc.WebSocketError('Incomplete read: expected message '
+                                         'of %s bytes, got %s bytes' % args)
 
             for i in xrange(length):
                 payload[i] = payload[i] ^ mask[i % 4]
@@ -122,20 +122,20 @@ class WebSocketHybi(WebSocket):
 
             if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
                 if opcode:
-                    raise ProtocolError('The opcode in non-fin frame is '
-                                        'expected to be zero, got %r' % (
-                                        f_opcode,))
+                    raise exc.ProtocolError('The opcode in non-fin frame is '
+                                            'expected to be zero, got %r' % (
+                                            f_opcode,))
 
                 opcode = f_opcode
             elif not f_opcode:
                 if not opcode is None:
-                    raise ProtocolError('Unexpected frame with opcode=0')
+                    raise exc.ProtocolError('Unexpected frame with opcode=0')
             elif f_opcode == OPCODE_CLOSE:
                 if len(payload) >= 2:
                     self.close_code = struct.unpack('!H', str(payload[:2]))[0]
                     self.close_message = payload[2:]
                 elif payload:
-                    raise ProtocolError('Invalid close frame: %r %r %r' % (
+                    raise exc.ProtocolError('Invalid close frame: %r %r %r' % (
                         fin, f_opcode, payload))
 
                 code = self.close_code
@@ -145,8 +145,8 @@ class WebSocketHybi(WebSocket):
 
                     return
 
-                raise ProtocolError('Received invalid close frame: %r %r' % (
-                    code, self.close_message))
+                raise exc.ProtocolError('Received invalid close frame: '
+                                        '%r %r' % (code, self.close_message))
 
             elif f_opcode == OPCODE_PING:
                 self.send_frame(payload, OPCODE_PONG)
@@ -154,7 +154,7 @@ class WebSocketHybi(WebSocket):
             elif f_opcode == OPCODE_PONG:
                 continue
             else:
-                raise ProtocolError("Unexpected opcode=%r" % (f_opcode,))
+                raise exc.ProtocolError("Unexpected opcode=%r" % (f_opcode,))
 
             message += payload
 
@@ -172,7 +172,7 @@ class WebSocketHybi(WebSocket):
     def receive(self):
         try:
             result = self._read_message()
-        except ProtocolError:
+        except exc.ProtocolError:
             self.close(1002)
 
             raise
@@ -201,7 +201,7 @@ class WebSocketHybi(WebSocket):
         Send a frame over the websocket with message as its payload
         """
         if not self.socket:
-            raise WebSocketError('The connection was closed')
+            raise exc.WebSocketError('The connection was closed')
 
         with self._writelock:
             try:
@@ -246,7 +246,7 @@ class WebSocketHybi(WebSocket):
             self.send_frame(
                 struct.pack('!H%ds' % len(message), code, message),
                 opcode=OPCODE_CLOSE)
-        except WebSocketError:
+        except exc.WebSocketError:
             # failed to write the closing frame but its ok because we're
             # closing the socket anyway.
             pass
@@ -262,22 +262,23 @@ def parse_header(data):
 
     if first_byte & HEADER_RSV_MASK:
         # one of the reserved bits is set, bail
-        raise WebSocketError(
+        raise exc.WebSocketError(
             'Received frame with non-zero reserved bits: %r' % (data,))
 
     fin = first_byte & 0x80 == 0x80
     opcode = first_byte & 0x0f
 
     if opcode > 0x07 and fin == 0:
-        raise WebSocketError('Received fragmented control frame: %r' % (data,))
+        raise exc.WebSocketError('Received fragmented control frame: %r' % (
+            data,))
 
     has_mask = second_byte & 0x80 == 0x80
     length = second_byte & 0x7f
 
     # Control frames MUST have a payload length of 125 bytes or less
     if opcode > 0x07 and length > 125:
-        raise FrameTooLargeException('Control frame payload cannot be larger '
-                                     'than 125 bytes: %r' % (data,))
+        raise exc.FrameTooLargeException('Control frame payload cannot be'
+                                         'larger than 125 bytes: %r' % (data,))
 
     return fin, opcode, has_mask, length
 
@@ -294,6 +295,6 @@ def encode_header(message, opcode):
     elif msg_length < (1 << 63):
         header += '\x7f' + struct.pack('!Q', msg_length)
     else:
-        raise FrameTooLargeException
+        raise exc.FrameTooLargeException
 
     return header
