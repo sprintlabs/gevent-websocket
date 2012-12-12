@@ -35,6 +35,17 @@ class WebSocketHybi(WebSocket):
         self._read = wrapped_read(self.fobj)
         self._readlock = lock.Semaphore(1)
 
+    def _decode_bytes(self, bytes):
+        if not bytes:
+            return bytes
+
+        try:
+            return bytes.decode('utf-8')
+        except ValueError:
+            self.close(1007)
+
+            raise
+
     def _read_header(self):
         """
         Receive and decode a Hybi WebSocket header.
@@ -199,12 +210,7 @@ class WebSocketHybi(WebSocket):
         if is_binary:
             return message
 
-        try:
-            return message.decode('utf-8')
-        except ValueError:
-            self.close(1007)
-
-            raise
+        return self._decode_bytes(message)
 
     def send_frame(self, message, opcode):
         """
