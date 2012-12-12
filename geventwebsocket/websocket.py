@@ -12,7 +12,8 @@ class WebSocket(object):
         'socket',
         'fobj',
         '_writelock',
-        '_write'
+        '_write',
+        '_read'
     )
 
     def __init__(self, socket, environ, lock_class=lock.Semaphore):
@@ -22,6 +23,8 @@ class WebSocket(object):
         self.fobj = makefile(socket)
         self._writelock = lock_class(1)
         self._write = socket.sendall
+        self._read = wrapped_read(self.fobj)
+
 
     def close(self):
         """
