@@ -224,6 +224,8 @@ class WebSocketHybi(WebSocket):
 
         with self._writelock:
             try:
+                message = encode_bytes(message)
+
                 self._write(encode_header(message, opcode) + message)
             except Exception:
                 self.close(None)
@@ -310,7 +312,6 @@ def decode_header(data):
 
 def encode_header(message, opcode):
     header = chr(0x80 | opcode)
-    message = encode_bytes(message)
     msg_length = len(message)
 
     if msg_length < 126:
