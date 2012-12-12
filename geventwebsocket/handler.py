@@ -43,11 +43,16 @@ class WebSocketHandler(WSGIHandler):
             if connection == 'upgrade':
                 if self.maybe_handle_websocket():
                     # the request was handled, probably with an error status
-
                     self.result = self.result or []
                     self.process_result()
 
                     return
+
+        if not self.environ.get('websocket'):
+            # no websocket could be created and the connection was not upgraded
+            super(WebSocketHandler, self).run_application()
+
+            return
 
         # from this point a valid websocket object is available in
         # self.environ['websocket']
