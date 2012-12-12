@@ -1,4 +1,6 @@
 import struct
+import base64
+import hashlib
 
 from gevent import lock
 
@@ -17,6 +19,10 @@ OPCODE_PONG = 0x0a
 
 # bitwise mask that will determine the reserved bits for a frame header
 HEADER_RSV_MASK = 0x40 | 0x20 | 0x10
+
+
+GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+SUPPORTED_VERSIONS = ('13', '8', '7')
 
 
 class ConnectionClosed(Exception):
@@ -339,3 +345,85 @@ def encode_header(bytes, opcode):
         raise exc.FrameTooLargeException
 
     return header
+
+
+def upgrade_connection(handler):
+    environ = handler.environ
+    version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
+
+    if version not in SUPPORTED_VERSIONS:
+        msg = '400: Unsupported Version: %r' % (version,)
+
+        handler.log_error(msg)
+        handler.start_response('400 Unsupported Version', [
+            ('Sec-WebSocket-Version', '13, 8, 7')
+        ])
+
+        return [msg]
+
+    # check client handshake for validity
+    if environ.get("REQUEST_METHOD") != "GET":
+        # 5.2.1 (1)
+        handler.start_response('400 Bad Request', [])
+
+        return
+
+    protocol, version = handler.request_version.split("/")
+
+    if protocol != "HTTP":
+        # 5.2.1 (1)
+        handler.start_response('400 Bad Request', [])
+
+        return
+
+    try:
+        version = float(version)
+    except ValueError:
+        handler.start_response('400 Bad Request', [])
+
+        return
+
+    if version < 1.1:
+        # 5.2.1 (1)
+        handler.start_response('400 Bad Request', [])
+
+        return
+
+    # XXX: nobody seems to set SERVER_NAME correctly. check the spec
+    #if environ.get("HTTP_HOST") != environ.get("SERVER_NAME"):
+    #    # 5.2.1 (2)
+    #    handler.start_response('400 Bad Request', [])
+
+    #    return
+
+    key = environ.get("HTTP_SEC_WEBSOCKET_KEY")
+
+    if not key:
+        # 5.2.1 (3)
+        msg = '400: Sec-WebSocket-Key header is missing/empty'
+
+        handler.log_error(msg)
+        handler.start_response('400 Bad Request', [])
+
+        return [msg]
+
+    if len(base64.b64decode(key)) != 16:
+        # 5.2.1 (3)
+        msg = '400: Invalid key: %r' % (key,)
+
+        handler.log_error(msg)
+        handler.start_response('400 Bad Request', [])
+
+        return [msg]
+
+    environ['wsgi.websocket'] = WebSocketHybi(handler.socket, environ)
+    environ['wsgi.websocket_version'] = 'hybi-%s' % version
+
+    headers = [
+        ("Upgrade", "websocket"),
+        ("Connection", "Upgrade"),
+        ("Sec-WebSocket-Accept", base64.b64encode(
+            hashlib.sha1(key + GUID).digest())),
+    ]
+
+    handler.start_response("101 Switching Protocols", headers)

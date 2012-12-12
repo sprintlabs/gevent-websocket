@@ -1,14 +1,9 @@
-import base64
-import re
-import struct
-from hashlib import md5, sha1
-from socket import error as socket_error
 import urlparse
 
 from gevent.pywsgi import WSGIHandler
 
-from .hybi import WebSocketHybi
-from .hixie import WebSocketHixie
+from . import hybi
+from . import hixie
 
 
 class WebSocketHandler(WSGIHandler):
@@ -25,9 +20,6 @@ class WebSocketHandler(WSGIHandler):
     negotiations to this library.  Socket.IO needs this for example, to
     send the 'ack' before yielding the control to your WSGI app.
     """
-
-    GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-    SUPPORTED_VERSIONS = ('13', '8', '7')
 
     @property
     def ws_url(self):
@@ -83,89 +75,10 @@ class WebSocketHandler(WSGIHandler):
         return True
 
     def _handle_hybi(self):
-        environ = self.environ
-        version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
-
-        environ['wsgi.websocket_version'] = 'hybi-%s' % version
-
-        if version not in self.SUPPORTED_VERSIONS:
-            self.log_error('400: Unsupported Version: %r', version)
-            self.respond(
-                '400 Unsupported Version',
-                [('Sec-WebSocket-Version', '13, 8, 7')]
-            )
-            return
-
-        protocol, version = self.request_version.split("/")
-        key = environ.get("HTTP_SEC_WEBSOCKET_KEY")
-
-        # check client handshake for validity
-        if not environ.get("REQUEST_METHOD") == "GET":
-            # 5.2.1 (1)
-            self.respond('400 Bad Request')
-            return
-        elif not protocol == "HTTP":
-            # 5.2.1 (1)
-            self.respond('400 Bad Request')
-            return
-        elif float(version) < 1.1:
-            # 5.2.1 (1)
-            self.respond('400 Bad Request')
-            return
-        # XXX: nobody seems to set SERVER_NAME correctly. check the spec
-        #elif not environ.get("HTTP_HOST") == environ.get("SERVER_NAME"):
-            # 5.2.1 (2)
-            #self.respond('400 Bad Request')
-            #return
-        elif not key:
-            # 5.2.1 (3)
-            self.log_error('400: HTTP_SEC_WEBSOCKET_KEY is missing from request')
-            self.respond('400 Bad Request')
-            return
-        elif len(base64.b64decode(key)) != 16:
-            # 5.2.1 (3)
-            self.log_error('400: Invalid key: %r', key)
-            self.respond('400 Bad Request')
-            return
-
-        self.websocket = WebSocketHybi(self.socket, environ)
-        environ['wsgi.websocket'] = self.websocket
-
-        headers = [
-            ("Upgrade", "websocket"),
-            ("Connection", "Upgrade"),
-            ("Sec-WebSocket-Accept", base64.b64encode(sha1(key + self.GUID).digest())),
-        ]
-        self._send_reply("101 Switching Protocols", headers)
-        return True
+        return hybi.upgrade_connection(self)
 
     def _handle_hixie(self):
         return hixie.upgrade_connection(self)
-
-    def _send_reply(self, status, headers):
-        self.status = status
-
-        towrite = []
-        towrite.append('%s %s\r\n' % (self.request_version, self.status))
-
-        for header in headers:
-            towrite.append("%s: %s\r\n" % header)
-
-        towrite.append("\r\n")
-        msg = ''.join(towrite)
-        self.socket.sendall(msg)
-        self.headers_sent = True
-
-    def respond(self, status, headers=None):
-        self.close_connection = True
-        self._send_reply(status, headers or [])
-
-        if self.socket is not None:
-            try:
-                self.socket._sock.close()
-                self.socket.close()
-            except socket_error:
-                pass
 
 
 def reconstruct_url(environ):
