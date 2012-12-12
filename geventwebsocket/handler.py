@@ -12,7 +12,8 @@ from .hixie import WebSocketHixie
 
 
 class WebSocketHandler(WSGIHandler):
-    """Automatically upgrades the connection to websockets.
+    """
+    Automatically upgrades the connection to websockets.
 
     To prevent the WebSocketHandler to call the underlying WSGI application,
     but only setup the WebSocket negotiations, do:
