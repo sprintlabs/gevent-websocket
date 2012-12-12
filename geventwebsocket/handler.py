@@ -36,7 +36,11 @@ class WebSocketHandler(WSGIHandler):
             connection = environ.get('HTTP_CONNECTION', '').lower()
 
             if connection == 'upgrade':
-                return self.handle_websocket()
+                self.result = self.handle_websocket() or []
+
+                self.process_result()
+
+                return
 
         return super(WebSocketHandler, self).run_application()
 
@@ -45,19 +49,20 @@ class WebSocketHandler(WSGIHandler):
 
     def handle_websocket(self):
         environ = self.environ
+        handled = None
 
-        if environ.get("HTTP_SEC_WEBSOCKET_VERSION"):
+        if environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
             self.close_connection = True
-            result = self._handle_hybi()
-        elif environ.get("HTTP_ORIGIN"):
+            handled = self._handle_hybi()
+        elif environ.get('HTTP_ORIGIN'):
             self.close_connection = True
-            result = self._handle_hixie()
+            handled = self._handle_hixie()
 
-        if not result:
-            return []
+        if not handled:
+            return
 
         if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
-            return []
+            return
 
         return self.application(environ, self._fake_start_response)
 
