@@ -52,14 +52,14 @@ class WebSocketHandler(WSGIHandler):
         handled = None
 
         if environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
-            self.close_connection = True
             handled = self._handle_hybi()
         elif environ.get('HTTP_ORIGIN'):
-            self.close_connection = True
             handled = self._handle_hixie()
 
         if not handled:
             return
+
+        self.close_connection = True
 
         if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
             return
