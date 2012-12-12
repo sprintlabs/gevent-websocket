@@ -120,7 +120,6 @@ class WebSocketHandler(WSGIHandler):
 
     def _handle_hixie(self):
         environ = self.environ
-        assert "upgrade" in self.environ.get("HTTP_CONNECTION", "").lower()
 
         self.websocket = WebSocketHixie(self.socket, environ)
         environ['wsgi.websocket'] = self.websocket
