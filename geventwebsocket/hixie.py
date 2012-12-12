@@ -71,52 +71,8 @@ class WebSocketHixie(WebSocket):
             ord(frame_type),))
 
 
-def upgrade_connection(handler):
+def _make_websocket(handler):
     environ = handler.environ
-
-    key1 = environ.get('HTTP_SEC_WEBSOCKET_KEY1', None)
-    key2 = environ.get('HTTP_SEC_WEBSOCKET_KEY2', None)
-
-    if key1 is None:
-        environ['wsgi.websocket_version'] = 'hixie-75'
-    else:
-        if not key1:
-            msg = "400: Sec-WebSocket-Key1 header is empty"
-
-            handler.log_error(msg)
-            handler.start_response('400 Bad Request', [])
-
-            return [msg]
-
-        if not key2:
-            msg = "400: Sec-WebSocket-Key1 header is missing/empty"
-
-            handler.log_error(msg)
-            handler.start_response('400 Bad Request', [])
-
-            return [msg]
-
-        try:
-            part1 = get_key_value(key1)
-            part2 = get_key_value(key2)
-        except SecKeyError, e:
-            msg = unicode(e)
-
-            handler.log_error(msg)
-            handler.start_response('400 Bad Request', [])
-
-            return [msg]
-
-        # This request should have 8 bytes of data in the body
-        key3 = handler.socket.read(8)
-
-        challenge_key = struct.pack("!II", part1, part2) + key3
-
-        challenge = hashlib.md5(challenge_key).digest()
-
-        handler.socket.sendall(challenge)
-
-        environ['wsgi.websocket_version'] = 'hixie-76'
 
     # all looks good, lets rock
     ws = environ['wsgi.websocket'] = WebSocketHixie(handler.socket, environ)
@@ -134,6 +90,56 @@ def upgrade_connection(handler):
         headers.append(("Sec-WebSocket-Origin", ws.origin))
 
     handler.start_response("101 Web Socket Protocol Handshake", headers)
+
+
+def upgrade_connection(handler):
+    environ = handler.environ
+
+    key1 = environ.get('HTTP_SEC_WEBSOCKET_KEY1', None)
+    key2 = environ.get('HTTP_SEC_WEBSOCKET_KEY2', None)
+
+    if key1 is None:
+        environ['wsgi.websocket_version'] = 'hixie-75'
+
+        return _make_websocket(handler)
+
+    if not key1:
+        msg = "400: Sec-WebSocket-Key1 header is empty"
+
+        handler.log_error(msg)
+        handler.start_response('400 Bad Request', [])
+
+        return [msg]
+
+    if not key2:
+        msg = "400: Sec-WebSocket-Key1 header is missing/empty"
+
+        handler.log_error(msg)
+        handler.start_response('400 Bad Request', [])
+
+        return [msg]
+
+    try:
+        part1 = get_key_value(key1)
+        part2 = get_key_value(key2)
+    except SecKeyError, e:
+        msg = unicode(e)
+
+        handler.log_error(msg)
+        handler.start_response('400 Bad Request', [])
+
+        return [msg]
+
+    # This request should have 8 bytes of data in the body
+    key3 = handler.socket.read(8)
+
+    challenge_key = struct.pack("!II", part1, part2) + key3
+    challenge = hashlib.md5(challenge_key).digest()
+    handler.socket.sendall(challenge)
+
+    environ['wsgi.websocket_version'] = 'hixie-76'
+
+    return _make_websocket(handler)
 
 
 def get_key_value(key):
