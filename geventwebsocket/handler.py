@@ -41,9 +41,8 @@ class WebSocketHandler(WSGIHandler):
             connection = environ.get('HTTP_CONNECTION', '').lower()
 
             if connection == 'upgrade':
-                if self.maybe_handle_websocket():
+                if not self.upgrade_websocket():
                     # the request was handled, probably with an error status
-                    self.result = self.result or []
                     self.process_result()
 
                     return
@@ -68,15 +67,21 @@ class WebSocketHandler(WSGIHandler):
     def _fake_start_response(self, *args, **kwargs):
         pass
 
-    def maybe_handle_websocket(self):
+    def upgrade_websocket(self):
         environ = self.environ
+        result = None
 
         if environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
-            return self._handle_hybi()
+            result = self._handle_hybi()
         elif environ.get('HTTP_ORIGIN'):
-            return self._handle_hixie()
+            result = self._handle_hixie()
 
-        return False
+        if self.status and not self.status.startswith('101 '):
+            self.result = result or []
+
+            return False
+
+        return True
 
     def _handle_hybi(self):
         environ = self.environ
