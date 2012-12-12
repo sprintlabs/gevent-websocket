@@ -141,64 +141,7 @@ class WebSocketHandler(WSGIHandler):
         return True
 
     def _handle_hixie(self):
-        environ = self.environ
-
-        self.websocket = WebSocketHixie(self.socket, environ)
-        environ['wsgi.websocket'] = self.websocket
-
-        key1 = self.environ.get('HTTP_SEC_WEBSOCKET_KEY1')
-        key2 = self.environ.get('HTTP_SEC_WEBSOCKET_KEY2')
-
-        if key1 is not None:
-            environ['wsgi.websocket_version'] = 'hixie-76'
-            if not key1:
-                self.log_error("400: SEC-WEBSOCKET-KEY1 header is empty")
-                self.respond('400 Bad Request')
-                return
-            if not key2:
-                self.log_error("400: SEC-WEBSOCKET-KEY2 header is missing or empty")
-                self.respond('400 Bad Request')
-                return
-
-            part1 = self._get_key_value(key1)
-            part2 = self._get_key_value(key2)
-            if part1 is None or part2 is None:
-                self.respond('400 Bad Request')
-                return
-
-            headers = [
-                ("Upgrade", "WebSocket"),
-                ("Connection", "Upgrade"),
-                ("Sec-WebSocket-Location", reconstruct_url(environ)),
-            ]
-            if self.websocket.protocol is not None:
-                headers.append(("Sec-WebSocket-Protocol", self.websocket.protocol))
-            if self.websocket.origin:
-                headers.append(("Sec-WebSocket-Origin", self.websocket.origin))
-
-            self._send_reply("101 WebSocket Protocol Handshake", headers)
-
-            # This request should have 8 bytes of data in the body
-            key3 = self.rfile.read(8)
-
-            challenge = md5(struct.pack("!II", part1, part2) + key3).digest()
-
-            self.socket.sendall(challenge)
-            return True
-        else:
-            environ['wsgi.websocket_version'] = 'hixie-75'
-            headers = [
-                ("Upgrade", "WebSocket"),
-                ("Connection", "Upgrade"),
-                ("WebSocket-Location", reconstruct_url(environ)),
-            ]
-
-            if self.websocket.protocol is not None:
-                headers.append(("WebSocket-Protocol", self.websocket.protocol))
-            if self.websocket.origin:
-                headers.append(("WebSocket-Origin", self.websocket.origin))
-
-            self._send_reply("101 Web Socket Protocol Handshake", headers)
+        return hixie.upgrade_connection(self)
 
     def _send_reply(self, status, headers):
         self.status = status
@@ -224,15 +167,6 @@ class WebSocketHandler(WSGIHandler):
                 self.socket.close()
             except socket_error:
                 pass
-
-    def _get_key_value(self, key_value):
-        key_number = int(re.sub("\\D", "", key_value))
-        spaces = re.subn(" ", "", key_value)[1]
-
-        if key_number % spaces != 0:
-            self.log_error("key_number %d is not an intergral multiple of spaces %d", key_number, spaces)
-        else:
-            return key_number / spaces
 
 
 def reconstruct_url(environ):

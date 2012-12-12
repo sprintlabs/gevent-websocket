@@ -1,8 +1,20 @@
+import re
+import struct
+import hashlib
+
 from .exceptions import WebSocketError
 from .websocket import WebSocket, encode_bytes
 
 
 __all__ = ['WebSocketHixie']
+
+
+class SecKeyError(Exception):
+    """
+    Raised if supplied Sec-WebSocket-Key* is malformed.
+
+    http://tools.ietf.org/html/draft-hixie-thewebsocketprotocol-76#section-1.3
+    """
 
 
 class WebSocketHixie(WebSocket):
@@ -57,3 +69,79 @@ class WebSocketHixie(WebSocket):
 
         raise WebSocketError("Received an invalid frame_type=%r" % (
             ord(frame_type),))
+
+
+def upgrade_connection(handler):
+    environ = handler.environ
+
+    key1 = environ.get('HTTP_SEC_WEBSOCKET_KEY1', None)
+    key2 = environ.get('HTTP_SEC_WEBSOCKET_KEY2', None)
+
+    if key1 is None:
+        environ['wsgi.websocket_version'] = 'hixie-75'
+    else:
+        if not key1:
+            msg = "400: Sec-WebSocket-Key1 header is empty"
+
+            handler.log_error(msg)
+            handler.start_response('400 Bad Request', [])
+
+            return [msg]
+
+        if not key2:
+            msg = "400: Sec-WebSocket-Key1 header is missing/empty"
+
+            handler.log_error(msg)
+            handler.start_response('400 Bad Request', [])
+
+            return [msg]
+
+        try:
+            part1 = get_key_value(key1)
+            part2 = get_key_value(key2)
+        except SecKeyError, e:
+            msg = unicode(e)
+
+            handler.log_error(msg)
+            handler.start_response('400 Bad Request', [])
+
+            return [msg]
+
+        # This request should have 8 bytes of data in the body
+        key3 = handler.socket.read(8)
+
+        challenge_key = struct.pack("!II", part1, part2) + key3
+
+        challenge = hashlib.md5(challenge_key).digest()
+
+        handler.socket.sendall(challenge)
+
+        environ['wsgi.websocket_version'] = 'hixie-76'
+
+    # all looks good, lets rock
+    ws = environ['wsgi.websocket'] = WebSocketHixie(handler.socket, environ)
+
+    headers = [
+        ("Upgrade", "WebSocket"),
+        ("Connection", "Upgrade"),
+        ("WebSocket-Location", handler.ws_url),
+    ]
+
+    if ws.protocol:
+        headers.append(("Sec-WebSocket-Protocol", ws.protocol))
+
+    if ws.origin:
+        headers.append(("Sec-WebSocket-Origin", ws.origin))
+
+    handler.start_response("101 Web Socket Protocol Handshake", headers)
+
+
+def get_key_value(key):
+    key_number = int(re.sub("\\D", "", key))
+    spaces = re.subn(" ", "", key)[1]
+
+    if key_number % spaces != 0:
+        raise SecKeyError("key_number %d is not an integral multiple of "
+                          "spaces %d" % (key_number, spaces))
+
+    return key_number / spaces
