@@ -91,40 +91,31 @@ class WebSocketHybi(WebSocket):
         """
         Return the next frame from the socket.
         """
-        if self._reading:
-            raise RuntimeError(
-                'Reading is not possible from multiple greenlets')
+        fin, opcode, has_mask, length = self._read_header()
 
-        self._reading = True
+        mask = self._read(4)
 
-        try:
-            fin, opcode, has_mask, length = self._read_header()
+        if len(mask) != 4:
+            raise exc.WebSocketError('Incomplete read while reading '
+                                     'mask: %r' % (mask,))
 
-            mask = self._read(4)
+        mask = struct.unpack('!BBBB', mask)
 
-            if len(mask) != 4:
-                raise exc.WebSocketError('Incomplete read while reading '
-                                         'mask: %r' % (mask,))
+        if not length:
+            return fin, opcode, ''
 
-            mask = struct.unpack('!BBBB', mask)
+        payload = bytearray(self._read(length))
 
-            if not length:
-                return fin, opcode, ''
+        if len(payload) != length:
+            args = (length, len(payload))
 
-            payload = bytearray(self._read(length))
+            raise exc.WebSocketError('Incomplete read: expected message '
+                                     'of %s bytes, got %s bytes' % args)
 
-            if len(payload) != length:
-                args = (length, len(payload))
+        for i in xrange(length):
+            payload[i] = payload[i] ^ mask[i % 4]
 
-                raise exc.WebSocketError('Incomplete read: expected message '
-                                         'of %s bytes, got %s bytes' % args)
-
-            for i in xrange(length):
-                payload[i] = payload[i] ^ mask[i % 4]
-
-            return fin, opcode, str(payload)
-        finally:
-            self._reading = False
+        return fin, opcode, str(payload)
 
     def _read_message(self):
         """
@@ -134,7 +125,16 @@ class WebSocketHybi(WebSocket):
         message = ''
 
         while True:
-            fin, f_opcode, payload = self._read_frame()
+            if self._reading:
+                raise RuntimeError(
+                    'Reading is not possible from multiple greenlets')
+
+            self._reading = True
+
+            try:
+                fin, f_opcode, payload = self._read_frame()
+            finally:
+                self._reading = False
 
             if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
                 if opcode:
