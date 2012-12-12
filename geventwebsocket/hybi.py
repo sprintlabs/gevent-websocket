@@ -19,6 +19,17 @@ OPCODE_PONG = 0x0a
 HEADER_RSV_MASK = 0x40 | 0x20 | 0x10
 
 
+class ConnectionClosed(Exception):
+    """
+    A special type of exception indicating that the remote endpoint closed the
+    connection.
+    """
+
+    def __init__(self, code, message):
+        self.code = code
+        self.message = message
+
+
 class WebSocketHybi(WebSocket):
     __slots__ = (
         'close_code',
@@ -149,25 +160,27 @@ class WebSocketHybi(WebSocket):
 
                 opcode = f_opcode
             elif not f_opcode:
-                if not opcode is None:
+                if not opcode:
                     raise exc.ProtocolError('Unexpected frame with opcode=0')
             elif f_opcode == OPCODE_CLOSE:
-                if len(payload) >= 2:
-                    self.close_code = struct.unpack('!H', str(payload[:2]))[0]
-                    self.close_message = payload[2:]
-                elif payload:
+                if not payload:
+                    self.close()
+
+                    raise ConnectionClosed(1000, None)
+
+                if len(payload) < 2:
                     raise exc.ProtocolError('Invalid close frame: %r %r %r' % (
                         fin, f_opcode, payload))
 
-                code = self.close_code
+                code = struct.unpack('!H', str(payload[:2]))[0]
+                payload = payload[2:]
 
-                if code is None or (1000 < code >= 5000):
-                    self.close()
+                if payload:
+                    payload = self._decode_bytes(payload)
 
-                    return
+                self.close(code)
 
-                raise exc.ProtocolError('Received invalid close frame: '
-                                        '%r %r' % (code, self.close_message))
+                raise ConnectionClosed(code, payload)
 
             elif f_opcode == OPCODE_PING:
                 self.send_frame(payload, OPCODE_PONG)
