@@ -45,7 +45,7 @@ class WebSocketHandler(WSGIHandler):
         return super(WebSocketHandler, self).run_application()
 
     def _fake_start_response(self, *args, **kwargs):
-        return None
+        pass
 
     def handle_websocket(self):
         environ = self.environ
