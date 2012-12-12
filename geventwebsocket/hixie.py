@@ -55,5 +55,7 @@ class WebSocketHixie(WebSocket):
             # XXX - Why the replace?
             return buf.decode("utf-8", "replace")
 
+        self.close()
+
         raise WebSocketError("Received an invalid frame_type=%r" % (
             ord(frame_type),))
