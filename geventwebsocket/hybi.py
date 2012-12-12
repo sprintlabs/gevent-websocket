@@ -164,8 +164,6 @@ class WebSocketHybi(WebSocket):
                     raise exc.ProtocolError('Unexpected frame with opcode=0')
             elif f_opcode == OPCODE_CLOSE:
                 if not payload:
-                    self.close()
-
                     raise ConnectionClosed(1000, None)
 
                 if len(payload) < 2:
@@ -177,8 +175,6 @@ class WebSocketHybi(WebSocket):
 
                 if payload:
                     payload = self._decode_bytes(payload)
-
-                self.close(code)
 
                 raise ConnectionClosed(code, payload)
 
@@ -210,6 +206,10 @@ class WebSocketHybi(WebSocket):
             self.close(1002)
 
             raise
+        except ConnectionClosed, e:
+            self.close(e.code)
+
+            return
         except:
             self.close(None)
 
