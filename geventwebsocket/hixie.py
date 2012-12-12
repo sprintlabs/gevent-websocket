@@ -31,7 +31,7 @@ class WebSocketHixie(WebSocket):
         return buf
 
     def receive(self):
-        if not self.fobj:
+        if not self.socket:
             return
 
         frame_type = self._read(1)
