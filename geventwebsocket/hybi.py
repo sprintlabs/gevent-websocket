@@ -57,10 +57,15 @@ class WebSocketHybi(WebSocket):
         if not has_mask and length:
             raise exc.WebSocketError('Message from client is not masked')
 
+        # In order to support larger messages sizes than 128, a special encoding
+        # based on the length is used.
+
         if length < 126:
+            # no more header to read
             return fin, opcode, has_mask, length
 
         if length == 126:
+            # header is an extra 2 bytes
             data1 = self._read(2)
 
             if len(data1) != 2:
@@ -69,6 +74,7 @@ class WebSocketHybi(WebSocket):
 
             length = struct.unpack('!H', data1)[0]
         else:
+            # header is an extra 8 bytes
             assert length == 127, length
 
             data1 = self._read(8)
