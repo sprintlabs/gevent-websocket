@@ -28,6 +28,8 @@ class WebSocketHixie(WebSocket):
 
             buf += byte
 
+        return buf
+
     def receive(self):
         if not self.fobj:
             return
