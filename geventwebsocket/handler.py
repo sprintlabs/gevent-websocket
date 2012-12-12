@@ -28,7 +28,7 @@ class WebSocketHandler(WSGIHandler):
     GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     SUPPORTED_VERSIONS = ('13', '8', '7')
 
-    def handle_one_response(self):
+    def run_application(self):
         environ = self.environ
         upgrade = environ.get('HTTP_UPGRADE', '').lower()
 
@@ -38,7 +38,7 @@ class WebSocketHandler(WSGIHandler):
             if connection == 'upgrade':
                 return self.handle_websocket()
 
-        return super(WebSocketHandler, self).handle_one_response()
+        return super(WebSocketHandler, self).run_application()
 
     def _fake_start_response(self, *args, **kwargs):
         return None
