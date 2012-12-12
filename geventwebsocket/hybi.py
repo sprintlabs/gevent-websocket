@@ -3,7 +3,7 @@ import struct
 from gevent import lock
 
 from . import exceptions as exc
-from .websocket import WebSocket, encode_bytes, wrapped_read
+from .websocket import WebSocket, encode_bytes
 
 
 __all__ = ['WebSocketHybi']

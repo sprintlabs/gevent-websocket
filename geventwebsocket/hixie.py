@@ -1,5 +1,5 @@
 from .exceptions import WebSocketError
-from .websocket import WebSocket, encode_bytes, wrapped_read
+from .websocket import WebSocket, encode_bytes
 
 
 __all__ = ['WebSocketHixie']
