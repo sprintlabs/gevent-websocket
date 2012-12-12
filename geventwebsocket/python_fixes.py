@@ -58,11 +58,3 @@ else:
     def makefile(socket):
         # XXX on python3 enable buffering
         return socket.makefile()
-
-
-if sys.version_info[:2] < (2, 7):
-    def is_closed(fobj):
-        return fobj._sock is None
-else:
-    def is_closed(fobj):
-        return fobj.closed
