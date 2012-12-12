@@ -36,14 +36,14 @@ class WebSocketHandler(WSGIHandler):
             connection = environ.get('HTTP_CONNECTION', '').lower()
 
             if connection == 'upgrade':
-                return self._handle_websocket()
+                return self.handle_websocket()
 
         return super(WebSocketHandler, self).handle_one_response()
 
     def _fake_start_response(self, *args, **kwargs):
         return None
 
-    def _handle_websocket(self):
+    def handle_websocket(self):
         environ = self.environ
 
         try:
