@@ -274,6 +274,12 @@ class WebSocketHybi(WebSocket):
 
 
 def decode_header(data):
+    """
+    Decode a Hybi header.
+
+    :param data: A 2 byte string.
+    :returns: A tuple containing fin, opcode, has_mask, length.
+    """
     if len(data) != 2:
         raise ValueError
 
