@@ -25,7 +25,6 @@ class WebSocket(object):
         self._write = socket.sendall
         self._read = wrapped_read(self.fobj)
 
-
     def close(self):
         """
         Close the fobj but not the socket, that is the responsibility of the
