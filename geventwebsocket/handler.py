@@ -39,11 +39,13 @@ class WebSocketHandler(WSGIHandler):
 
                     return
 
-        if not self.environ.get('websocket'):
+        if not self.environ.get('wsgi.websocket'):
             # no websocket could be created and the connection was not upgraded
             super(WebSocketHandler, self).run_application()
 
             return
+
+        self._write_with_headers(None)
 
         # from this point a valid websocket object is available in
         # self.environ['websocket']
