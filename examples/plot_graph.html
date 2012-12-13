@@ -7,13 +7,15 @@
 	<script src="http://people.iola.dk/olau/flot/jquery.flot.js"></script>
 	<script>
 	var iets = "";
+    var s = null;
+
 	window.onload = function() {
 		var data = {};
 		try {
-			var s = new WebSocket("ws://localhost:8000/data");
+			s = new WebSocket("ws://localhost:8000/data");
 		}
 		catch (e) {
-			var s = new MozWebSocket("ws://localhost:8000/data");
+			s = new MozWebSocket("ws://localhost:8000/data");
 		}
 		s.onopen = function() {
 			s.send('hi');
