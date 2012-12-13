@@ -131,7 +131,7 @@ def upgrade_connection(handler):
         return [msg]
 
     # This request should have 8 bytes of data in the body
-    key3 = handler.socket.read(8)
+    key3 = handler.socket.recv(8)
 
     challenge_key = struct.pack("!II", part1, part2) + key3
     challenge = hashlib.md5(challenge_key).digest()
