@@ -1,7 +1,5 @@
 from gevent import lock
 
-from python_fixes import makefile
-
 
 __all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
 
@@ -20,7 +18,7 @@ class WebSocket(object):
         self.environ = environ
         self.socket = socket
 
-        self.fobj = makefile(socket)
+        self.fobj = socket.makefile('rb', 0)
         self._writelock = lock_class(1)
         self._write = socket.sendall
         self._read = wrapped_read(self.fobj)
