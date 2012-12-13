@@ -11,12 +11,14 @@ class WebSocket(object):
         'fobj',
         '_writelock',
         '_write',
-        '_read'
+        '_read',
+        'closed'
     )
 
     def __init__(self, socket, environ, lock_class=lock.Semaphore):
         self.environ = environ
         self.socket = socket
+        self.closed = False
 
         self.fobj = socket.makefile('rb', 0)
         self._writelock = lock_class(1)
@@ -32,6 +34,7 @@ class WebSocket(object):
             return
 
         self.socket = None
+        self.closed = True
 
         try:
             self.fobj.close()
