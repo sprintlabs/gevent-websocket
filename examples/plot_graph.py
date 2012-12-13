@@ -10,7 +10,6 @@ Or with an Gunicorn wrapper:
 """
 
 import gevent
-import os
 import random
 
 from gevent import pywsgi
@@ -39,15 +38,24 @@ def handle(ws):
 def app(environ, start_response):
     if environ["PATH_INFO"] == "/":
         start_response("200 OK", [("Content-Type", "text/html")])
+
         return open("plot_graph.html").readlines()
+
     elif environ["PATH_INFO"] in ("/data", "/echo"):
         handle(environ["wsgi.websocket"])
     else:
         start_response("404 Not Found", [])
+
         return []
 
 
 if __name__ == "__main__":
-    server = pywsgi.WSGIServer(("", 8000), app,
+    server = pywsgi.WSGIServer(
+        ("", 8000), app,
         handler_class=WebSocketHandler)
-    server.serve_forever()
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
