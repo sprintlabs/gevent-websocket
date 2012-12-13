@@ -45,6 +45,8 @@ class WebSocketHandler(WSGIHandler):
 
             return
 
+        self.provided_content_length = True
+        self.response_use_chunked = False
         self._write_with_headers(None)
 
         # from this point a valid websocket object is available in
