@@ -7,6 +7,18 @@ __all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
 
 
 class WebSocket(object):
+    """
+    Base class for supporting websocket operations.
+
+    :ivar environ: The http environment referenced by this connection.
+    :ivar closed: Whether this connection is closed/closing.
+    :ivar _socket: The underlying socket object.
+    :ivar _fobj: The file like object used to read from the connection.
+    :ivar _read: Internal callable that will read from the connection. If an
+        error occured then this will return an empty string.
+    :ivar _write: Internal callable that will write to the connection.
+    """
+
     __slots__ = (
         'environ',
         'closed',
