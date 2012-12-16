@@ -2,8 +2,6 @@ import base64
 import hashlib
 import struct
 
-from gevent import lock
-
 from . import exceptions as exc
 from .websocket import WebSocket, encode_bytes
 
