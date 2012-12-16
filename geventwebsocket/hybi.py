@@ -351,7 +351,7 @@ def upgrade_connection(handler):
 
         return
 
-    protocol, version = handler.request_version.split("/")
+    protocol, http_version = handler.request_version.split("/")
 
     if protocol != "HTTP":
         # 5.2.1 (1)
@@ -360,13 +360,13 @@ def upgrade_connection(handler):
         return
 
     try:
-        version = float(version)
+        http_version = float(http_version)
     except ValueError:
         handler.start_response('400 Bad Request', [])
 
         return
 
-    if version < 1.1:
+    if http_version < 1.1:
         # 5.2.1 (1)
         handler.start_response('400 Bad Request', [])
 
