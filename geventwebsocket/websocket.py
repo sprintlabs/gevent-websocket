@@ -83,9 +83,13 @@ def wrapped_read(fobj):
     `fobj` in this case is a file like object e.g. `socket.makefile()`
     """
     # basic sanity check
-    assert hasattr(fobj, 'read') and callable(fobj.read)
+    if not hasattr(fobj, 'read'):
+        raise TypeError('Expected file like object, received %r' % (fobj,))
 
     read = fobj.read
+
+    if not callable(read):
+        raise TypeError('Expected callable `read` for %r' % (fobj,))
 
     def reader(*args):
         try:
