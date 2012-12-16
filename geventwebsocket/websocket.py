@@ -32,11 +32,14 @@ class WebSocket(object):
         Close the fobj but not the socket, that is the responsibility of the
         initiator.
         """
-        if not self.socket:
+        if self.closed:
             return
 
         self.socket = None
         self.closed = True
+
+        self._write = None
+        self._read = None
 
         try:
             self.fobj.close()
@@ -45,7 +48,6 @@ class WebSocket(object):
             pass
 
         self.fobj = None
-        self._write = None
 
     @property
     def origin(self):
