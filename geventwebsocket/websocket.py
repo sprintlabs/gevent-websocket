@@ -64,16 +64,15 @@ class WebSocket(object):
 
 def encode_bytes(text):
     """
-    :returns: The utf-8 byte string equivalent of `text`. If text is already a
-        byte string, no attempt is made to validate the contents.
+    :returns: The utf-8 byte string equivalent of `text`.
     """
-    if not isinstance(text, basestring):
+    if isinstance(text, str):
+        return text
+
+    if not isinstance(text, unicode):
         text = unicode(text)
 
-    if isinstance(text, unicode):
-        return text.encode('utf-8')
-
-    return text
+    return text.encode('utf-8')
 
 
 def wrapped_read(fobj):

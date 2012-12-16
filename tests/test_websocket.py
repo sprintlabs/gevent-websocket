@@ -42,3 +42,29 @@ class EncodeBytesTestCase(unittest.TestCase):
 
         self.assertEqual('foobar', websocket.encode_bytes(my_string))
 
+    def test_non_string_bytes(self):
+        """
+        An object that acts like a bytestring should return its bytes
+        """
+        class MyByteString(object):
+            def __str__(self):
+                return 'foobar'
+
+        my_byte_string = MyByteString()
+
+        self.assertEqual('foobar', websocket.encode_bytes(my_byte_string))
+
+    def test_non_string_bad_utf8(self):
+        """
+        An object that acts like a bytestring but contains bad utf-8 data
+        must raise a `UnicodeDecodeError` exception.
+        """
+        class MyBadUtf8(object):
+            def __str__(self):
+                return '\xff\x00'
+
+        my_byte_string = MyBadUtf8()
+
+        with self.assertRaises(UnicodeDecodeError) as ctx:
+            websocket.encode_bytes(my_byte_string)
+
