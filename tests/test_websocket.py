@@ -159,8 +159,13 @@ class FakeFile(object):
         self.mode = mode
         self.buffersize = buffersize
 
+        self.closed = False
+
     def read(self):
         pass
+
+    def close(self):
+        self.closed = True
 
 
 class FakeSocket(object):
@@ -199,3 +204,25 @@ class WebSocketTestCase(unittest.TestCase):
         self.assertIs(fobj.socket, socket)
         self.assertEqual(fobj.mode, 'rb')
         self.assertEqual(fobj.buffersize, 0)
+
+    def test_close(self):
+        """
+        Ensure the correct state when closing a WebSocket object.
+        """
+        socket = FakeSocket()
+        environ = object()
+
+        ws = websocket.WebSocket(socket, environ)
+        fobj = ws._fobj
+
+        self.assertFalse(ws.closed)
+        ws.close()
+
+        self.assertTrue(ws.closed)
+        self.assertIsNone(ws._socket)
+        self.assertIsNone(ws._fobj)
+        self.assertIsNone(ws._read)
+        self.assertIsNone(ws._write)
+
+        # Ensure that the file object was explicitly closed.
+        self.assertTrue(fobj.closed)
