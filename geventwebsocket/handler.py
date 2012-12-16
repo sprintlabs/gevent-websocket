@@ -61,7 +61,7 @@ class WebSocketHandler(WSGIHandler):
         # application actually responds with for the http response
         self.application(self.environ, self._fake_start_response)
 
-    def _fake_start_response(self, *args, **kwargs):
+    def _fake_start_response(self, status, headers):
         pass
 
     def upgrade_websocket(self):
