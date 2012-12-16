@@ -18,8 +18,8 @@ class WebSocket(object):
     )
 
     def __init__(self, socket, environ, lock_class=lock.Semaphore):
-        self.environ = environ
         self.socket = socket
+        self.environ = environ
         self.closed = False
 
         self.fobj = socket.makefile('rb', 0)
