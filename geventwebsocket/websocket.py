@@ -64,18 +64,30 @@ class WebSocket(object):
 
     @property
     def origin(self):
+        if not self.environ:
+            return
+
         return self.environ.get('HTTP_ORIGIN')
 
     @property
     def protocol(self):
+        if not self.environ:
+            return
+
         return self.environ.get('HTTP_SEC_WEBSOCKET_PROTOCOL')
 
     @property
     def version(self):
+        if not self.environ:
+            return
+
         return self.environ.get('HTTP_SEC_WEBSOCKET_VERSION')
 
     @property
     def path(self):
+        if not self.environ:
+            return
+
         return self.environ.get('PATH_INFO')
 
 
