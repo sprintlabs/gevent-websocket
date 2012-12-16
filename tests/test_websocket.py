@@ -186,14 +186,18 @@ class WebSocketTestCase(unittest.TestCase):
     Tests for `websocket.WebSocket`
     """
 
+    def make_websocket(self, socket=None, environ=None):
+        socket = socket or FakeSocket()
+
+        return websocket.WebSocket(socket, environ)
+
     def test_init(self):
         """
         Ensure the correct state when creating a WebSocket object.
         """
         socket = FakeSocket()
         environ = object()
-
-        ws = websocket.WebSocket(socket, environ)
+        ws = self.make_websocket(socket, environ)
 
         self.assertIs(environ, ws.environ)
         self.assertFalse(ws.closed)
@@ -209,10 +213,7 @@ class WebSocketTestCase(unittest.TestCase):
         """
         Ensure the correct state when closing a WebSocket object.
         """
-        socket = FakeSocket()
-        environ = object()
-
-        ws = websocket.WebSocket(socket, environ)
+        ws = self.make_websocket()
         fobj = ws._fobj
 
         self.assertFalse(ws.closed)
@@ -226,3 +227,11 @@ class WebSocketTestCase(unittest.TestCase):
 
         # Ensure that the file object was explicitly closed.
         self.assertTrue(fobj.closed)
+
+    def test_origin(self):
+        """
+        Ensure that the `origin` property properly pulls from the environ dict.
+        """
+        ws = self.make_websocket()
+
+
