@@ -48,11 +48,9 @@ class WebSocketHandler(WSGIHandler):
 
         self.provided_content_length = True
         self.response_use_chunked = False
-        self._write_with_headers(None)
-
-        # from this point a valid websocket object is available in
-        # self.environ['websocket']
         self.close_connection = True
+
+        self._write_with_headers(None)
 
         if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
             return
@@ -65,6 +63,12 @@ class WebSocketHandler(WSGIHandler):
         pass
 
     def upgrade_websocket(self):
+        """
+        Attempt to upgrade the current environ into a websocket enabled
+        connection.
+
+        :returns: Whether the upgrade was successful.
+        """
         result = None
 
         if self.environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
