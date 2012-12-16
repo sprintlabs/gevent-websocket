@@ -68,22 +68,17 @@ class WebSocketHandler(WSGIHandler):
         result = None
 
         if self.environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
-            result = self._handle_hybi()
+            result = hybi.upgrade_connection(self)
         elif self.environ.get('HTTP_ORIGIN'):
-            result = self._handle_hixie()
+            result = hixie.upgrade_connection(self)
 
         if self.status and not self.status.startswith('101 '):
+            # could not upgrade the connection
             self.result = result or []
 
             return False
 
         return True
-
-    def _handle_hybi(self):
-        return hybi.upgrade_connection(self)
-
-    def _handle_hixie(self):
-        return hixie.upgrade_connection(self)
 
 
 def reconstruct_url(environ):
