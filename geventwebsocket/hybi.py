@@ -1,6 +1,6 @@
-import struct
 import base64
 import hashlib
+import struct
 
 from gevent import lock
 
