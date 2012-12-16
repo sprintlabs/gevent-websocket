@@ -37,15 +37,6 @@ class ConnectionClosed(Exception):
 
 
 class WebSocketHybi(WebSocket):
-    __slots__ = (
-        '_readlock',
-    )
-
-    def __init__(self, socket, environ):
-        super(WebSocketHybi, self).__init__(socket, environ)
-
-        self._readlock = lock.Semaphore(1)
-
     def _decode_bytes(self, bytes):
         if not bytes:
             return bytes
@@ -149,8 +140,7 @@ class WebSocketHybi(WebSocket):
         message = ''
 
         while True:
-            with self._readlock:
-                fin, f_opcode, payload = self._read_frame()
+            fin, f_opcode, payload = self._read_frame()
 
             if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
                 if opcode:
@@ -236,15 +226,14 @@ class WebSocketHybi(WebSocket):
         if not self.fobj:
             raise exc.WebSocketError('The connection was closed')
 
-        with self._writelock:
-            try:
-                message = encode_bytes(message)
+        try:
+            message = encode_bytes(message)
 
-                self._write(encode_header(message, opcode) + message)
-            except Exception:
-                self.close(None)
+            self._write(encode_header(message, opcode) + message)
+        except Exception:
+            self.close(None)
 
-                raise
+            raise
 
     def send(self, message, binary=False):
         """

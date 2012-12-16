@@ -9,7 +9,6 @@ __all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
 class WebSocket(object):
     __slots__ = (
         'environ',
-        '_writelock',
         'closed',
         '_socket',
         '_fobj',
@@ -17,12 +16,10 @@ class WebSocket(object):
         '_read',
     )
 
-    def __init__(self, socket, environ, lock_class=lock.Semaphore):
-        self.socket = socket
+    def __init__(self, socket, environ):
         self.environ = environ
         self.closed = False
 
-        self._writelock = lock_class(1)
         self._socket = socket
         self._fobj = socket.makefile('rb', 0)
 
