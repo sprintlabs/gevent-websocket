@@ -9,12 +9,12 @@ __all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
 class WebSocket(object):
     __slots__ = (
         'environ',
-        'socket',
-        'fobj',
         '_writelock',
+        'closed',
+        '_socket',
+        '_fobj',
         '_write',
         '_read',
-        'closed'
     )
 
     def __init__(self, socket, environ, lock_class=lock.Semaphore):
@@ -22,32 +22,36 @@ class WebSocket(object):
         self.environ = environ
         self.closed = False
 
-        self.fobj = socket.makefile('rb', 0)
         self._writelock = lock_class(1)
+        self._socket = socket
+        self._fobj = socket.makefile('rb', 0)
+
         self._write = socket.sendall
-        self._read = wrapped_read(self.fobj)
+        self._read = wrapped_read(self._fobj)
 
     def close(self):
         """
-        Close the fobj but not the socket, that is the responsibility of the
-        initiator.
+        Called to close this connection. The underlying socket object is _not_
+        closed, that is the responsibility of the initiator.
         """
         if self.closed:
             return
 
-        self.socket = None
         self.closed = True
 
+        self._socket = None
         self._write = None
         self._read = None
 
+        self.environ = None
+
         try:
-            self.fobj.close()
+            self._fobj.close()
         except:
             # TODO: Think about logging?
             pass
-
-        self.fobj = None
+        finally:
+            self._fobj = None
 
     @property
     def origin(self):

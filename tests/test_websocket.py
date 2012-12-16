@@ -152,3 +152,50 @@ class WrappedReadTestCase(unittest.TestCase):
 
         self.assertEqual('foobar', reader())
 
+
+class FakeFile(object):
+    def __init__(self, socket, mode, buffersize):
+        self.socket = socket
+        self.mode = mode
+        self.buffersize = buffersize
+
+    def read(self):
+        pass
+
+
+class FakeSocket(object):
+    """
+    A fake socket like object that a `unittest.TestCase` can use to mock out
+    the underlying intricacies of the real socket layer.
+    """
+
+    def makefile(self, mode, buffersize):
+        return FakeFile(self, mode, buffersize)
+
+    def sendall(self):
+        pass
+
+
+class WebSocketTestCase(unittest.TestCase):
+    """
+    Tests for `websocket.WebSocket`
+    """
+
+    def test_init(self):
+        """
+        Ensure the correct state when creating a WebSocket object.
+        """
+        socket = FakeSocket()
+        environ = object()
+
+        ws = websocket.WebSocket(socket, environ)
+
+        self.assertIs(environ, ws.environ)
+        self.assertFalse(ws.closed)
+
+        fobj = ws._fobj
+
+        self.assertIsInstance(fobj, FakeFile)
+        self.assertIs(fobj.socket, socket)
+        self.assertEqual(fobj.mode, 'rb')
+        self.assertEqual(fobj.buffersize, 0)
