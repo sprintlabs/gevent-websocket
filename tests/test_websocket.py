@@ -254,3 +254,16 @@ class WebSocketTestCase(unittest.TestCase):
         ws = self.make_websocket(environ=environ)
 
         self.assertEqual(ws.protocol, 'foobar')
+
+    def test_version(self):
+        """
+        Ensure that the `version` property properly pulls from the environ dict.
+        """
+        ws = self.make_websocket()
+        self.assertIsNone(ws.environ)
+        self.assertIsNone(ws.version)
+
+        environ = {'HTTP_SEC_WEBSOCKET_VERSION': 'foobar'}
+        ws = self.make_websocket(environ=environ)
+
+        self.assertEqual(ws.version, 'foobar')
