@@ -233,5 +233,9 @@ class WebSocketTestCase(unittest.TestCase):
         Ensure that the `origin` property properly pulls from the environ dict.
         """
         ws = self.make_websocket()
+        self.assertIsNone(ws.origin)
 
+        environ = {'HTTP_ORIGIN': 'foobar'}
+        ws = self.make_websocket(environ=environ)
 
+        self.assertEqual(ws.origin, 'foobar')
