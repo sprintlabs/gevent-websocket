@@ -379,7 +379,7 @@ def upgrade_connection(handler):
 
     #    return
 
-    key = environ.get("HTTP_SEC_WEBSOCKET_KEY")
+    key = environ.get("HTTP_SEC_WEBSOCKET_KEY", '').strip()
 
     if not key:
         # 5.2.1 (3)
@@ -390,7 +390,17 @@ def upgrade_connection(handler):
 
         return [msg]
 
-    if len(base64.b64decode(key)) != 16:
+    try:
+        key_len = len(base64.b64decode(key))
+    except TypeError:
+        msg = '400: Invalid key: %r' % (key,)
+
+        handler.log_error(msg)
+        handler.start_response('400 Bad Request', [])
+
+        return [msg]
+
+    if key_len != 16:
         # 5.2.1 (3)
         msg = '400: Invalid key: %r' % (key,)
 
