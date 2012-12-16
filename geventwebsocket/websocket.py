@@ -38,6 +38,16 @@ class WebSocket(object):
         self._write = socket.sendall
         self._read = wrapped_read(self._fobj)
 
+    def __del__(self):
+        """
+        This may or may not be called.
+        """
+        try:
+            self.close()
+        except:
+            # close() may fail if __init__ didn't complete
+            pass
+
     def close(self):
         """
         Called to close this connection. The underlying socket object is _not_
