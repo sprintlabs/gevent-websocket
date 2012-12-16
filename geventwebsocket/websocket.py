@@ -64,10 +64,11 @@ class WebSocket(object):
 
 def encode_bytes(text):
     """
-    :returns: The byte string equivalent of `text`.
+    :returns: The utf-8 byte string equivalent of `text`. If text is already a
+        byte string, no attempt is made to validate the contents.
     """
     if not isinstance(text, basestring):
-        return str(text)
+        text = unicode(text)
 
     if isinstance(text, unicode):
         return text.encode('utf-8')
