@@ -220,10 +220,7 @@ class WebSocketHybi(WebSocket):
         """
         Send a frame over the websocket with message as its payload
         """
-        # send frame is potentially called during close and self.socket may not
-        # exist, so check self.fobj instead as that does not get cleaned up
-        # until after.
-        if not self.fobj:
+        if self.closed:
             raise exc.WebSocketError('The connection was closed')
 
         try:
