@@ -267,3 +267,16 @@ class WebSocketTestCase(unittest.TestCase):
         ws = self.make_websocket(environ=environ)
 
         self.assertEqual(ws.version, 'foobar')
+
+    def test_path(self):
+        """
+        Ensure that the `path` property properly pulls from the environ dict.
+        """
+        ws = self.make_websocket()
+        self.assertIsNone(ws.environ)
+        self.assertIsNone(ws.path)
+
+        environ = {'PATH_INFO': '/foobar'}
+        ws = self.make_websocket(environ=environ)
+
+        self.assertEqual(ws.path, '/foobar')
