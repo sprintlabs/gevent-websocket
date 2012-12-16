@@ -330,17 +330,6 @@ def encode_header(bytes, opcode):
 
 def upgrade_connection(handler):
     environ = handler.environ
-    version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
-
-    if version not in SUPPORTED_VERSIONS:
-        msg = '400: Unsupported Version: %r' % (version,)
-
-        handler.log_error(msg)
-        handler.start_response('400 Unsupported Version', [
-            ('Sec-WebSocket-Version', '13, 8, 7')
-        ])
-
-        return [msg]
 
     # check client handshake for validity
     if environ.get("REQUEST_METHOD") != "GET":
@@ -369,6 +358,18 @@ def upgrade_connection(handler):
         handler.start_response('400 Bad Request', [])
 
         return
+
+    version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
+
+    if version not in SUPPORTED_VERSIONS:
+        msg = '400: Unsupported Version: %r' % (version,)
+
+        handler.log_error(msg)
+        handler.start_response('400 Unsupported Version', [
+            ('Sec-WebSocket-Version', '13, 8, 7')
+        ])
+
+        return [msg]
 
     # XXX: nobody seems to set SERVER_NAME correctly. check the spec
     #if environ.get("HTTP_HOST") != environ.get("SERVER_NAME"):
