@@ -26,11 +26,10 @@ class WebSocketHandler(WSGIHandler):
         return reconstruct_url(self.environ)
 
     def run_application(self):
-        environ = self.environ
-        upgrade = environ.get('HTTP_UPGRADE', '').lower()
+        upgrade = self.environ.get('HTTP_UPGRADE', '').lower()
 
         if upgrade == 'websocket':
-            connection = environ.get('HTTP_CONNECTION', '').lower()
+            connection = self.environ.get('HTTP_CONNECTION', '').lower()
 
             if connection == 'upgrade':
                 if not self.upgrade_websocket():
