@@ -1,3 +1,5 @@
+import functools
+
 from gevent import lock
 
 
@@ -91,6 +93,7 @@ def wrapped_read(fobj):
     if not callable(read):
         raise TypeError('Expected callable `read` for %r' % (fobj,))
 
+    @functools.wraps(read)
     def reader(*args):
         try:
             return read(*args)
