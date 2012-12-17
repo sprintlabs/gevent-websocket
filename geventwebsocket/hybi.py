@@ -210,7 +210,7 @@ class WebSocketHybi(WebSocket):
                 struct.pack('!H%ds' % len(message), code, message),
                 opcode=OPCODE_CLOSE)
         except exc.WebSocketError:
-            # failed to write the closing frame but its ok because we're
+            # failed to write the closing frame but it's ok because we're
             # closing the socket anyway.
             pass
         finally:
@@ -242,7 +242,7 @@ def decode_header(stream):
     length = second_byte & LENGTH_MASK
 
     if opcode > 0x07:
-        if fin == 0:
+        if not fin:
             raise exc.ProtocolError(
                 'Received fragmented control frame: %r' % (data,))
 
