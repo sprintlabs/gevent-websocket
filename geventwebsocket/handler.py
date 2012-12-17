@@ -86,6 +86,8 @@ class WebSocketHandler(WSGIHandler):
             result = hybi.upgrade_connection(self)
         elif self.environ.get('HTTP_ORIGIN'):
             result = hixie.upgrade_connection(self)
+        else:
+            return False
 
         if self.status and not self.status.startswith('101 '):
             # could not upgrade the connection
