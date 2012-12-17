@@ -75,7 +75,7 @@ class WebSocketHandler(WSGIHandler):
 
             return False
 
-        if not self.check_http_version():
+        if self.request_version != 'HTTP/1.1':
             self.start_response('400 Bad Request', [])
 
             return False
@@ -91,25 +91,6 @@ class WebSocketHandler(WSGIHandler):
             # could not upgrade the connection
             self.result = result or []
 
-            return False
-
-        return True
-
-    def check_http_version(self):
-        if not self.request_version:
-            return False
-
-        protocol, http_version = self.request_version.split("/")
-
-        if protocol != "HTTP":
-            return False
-
-        try:
-            http_version = float(http_version)
-        except ValueError:
-            return False
-
-        if http_version < 1.1:
             return False
 
         return True
