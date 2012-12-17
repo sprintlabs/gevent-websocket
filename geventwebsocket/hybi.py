@@ -51,65 +51,11 @@ class WebSocketHybi(WebSocket):
 
             raise
 
-    def _read_header(self):
-        """
-        Receive and decode a Hybi WebSocket header.
-
-        As with all other private methods, if there is an error, no attempt will
-        be made to clean up the socket.
-
-        :returns: A tuple containing::
-            fin: Whether the associated data with this header considers the
-                frame complete.
-            opcode: The message type.
-            has_mask: Whether the payload contains mask data.
-            length: The length of the payload.
-        """
-        data0 = self._read(2)
-
-        if not data0:
-            raise exc.WebSocketError('Peer closed connection unexpectedly')
-
-        fin, opcode, has_mask, length = decode_header(data0)
-
-        if not has_mask and length:
-            raise exc.WebSocketError('Message from client is not masked')
-
-        # In order to support larger messages sizes than 128, a special encoding
-        # based on the length is used.
-
-        if length < 126:
-            # no more header to read
-            return fin, opcode, has_mask, length
-
-        if length == 126:
-            # header is an extra 2 bytes
-            data1 = self._read(2)
-
-            if len(data1) != 2:
-                raise exc.WebSocketError('Incomplete read while reading '
-                                         '2-byte length: %r' % (data0 + data1,))
-
-            length = struct.unpack('!H', data1)[0]
-        else:
-            # header is an extra 8 bytes
-            assert length == 127, length
-
-            data1 = self._read(8)
-
-            if len(data1) != 8:
-                raise exc.WebSocketError('Incomplete read while reading '
-                                         '8-byte length: %r' % (data0 + data1,))
-
-            length = struct.unpack('!Q', data1)[0]
-
-        return fin, opcode, has_mask, length
-
     def _read_frame(self):
         """
         Return the next frame from the socket.
         """
-        fin, opcode, has_mask, length = self._read_header()
+        fin, opcode, has_mask, length = decode_header(self._fobj)
 
         mask = self._read(4)
 
@@ -275,15 +221,17 @@ class WebSocketHybi(WebSocket):
             super(WebSocketHybi, self).close()
 
 
-def decode_header(data):
+def decode_header(stream):
     """
     Decode a Hybi header.
 
     :param data: A 2 byte string.
     :returns: A tuple containing fin, opcode, has_mask, length.
     """
+    data = stream.read(2)
+
     if len(data) != 2:
-        raise ValueError
+        raise exc.WebSocketError('Unexpected EOF while decoding header')
 
     first_byte, second_byte = struct.unpack('!BB', data)
 
@@ -294,18 +242,40 @@ def decode_header(data):
 
     fin = first_byte & FIN_MASK == FIN_MASK
     opcode = first_byte & OPCODE_MASK
-
-    if opcode > 0x07 and fin == 0:
-        raise exc.WebSocketError('Received fragmented control frame: %r' % (
-            data,))
-
     has_mask = second_byte & MASK_MASK == MASK_MASK
     length = second_byte & LENGTH_MASK
 
-    # Control frames MUST have a payload length of 125 bytes or less
-    if opcode > 0x07 and length > 125:
-        raise exc.FrameTooLargeException('Control frame cannot be larger than '
-                                         '125 bytes: %r' % (data,))
+    if opcode > 0x07:
+        if fin == 0:
+            raise exc.WebSocketError(
+                'Received fragmented control frame: %r' % (data,))
+
+        # Control frames MUST have a payload length of 125 bytes or less
+        if length > 125:
+            raise exc.FrameTooLargeException(
+                'Control frame cannot be larger than 125 bytes: %r' % (data,))
+
+    if length < 125:
+        return fin, opcode, has_mask, length
+
+    if length == 126:
+        # 16 bit length
+        data = stream.read(2)
+
+        if len(data) != 2:
+            raise exc.WebSocketError('Unexpected EOF while decoding header')
+
+        length = struct.unpack('!H', data)[0]
+    elif length == 127:
+        # 64 bit length
+        data = stream.read(8)
+
+        if len(data) != 8:
+            raise exc.WebSocketError('Unexpected EOF while decoding header')
+
+        length = struct.unpack('!Q', data)[0]
+    else:
+        raise exc.ProtocolError('Malformed header %r' % (data,))
 
     return fin, opcode, has_mask, length
 

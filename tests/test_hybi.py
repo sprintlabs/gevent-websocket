@@ -1,4 +1,8 @@
 import unittest
+try:
+    from cStringIO import StringIO
+except ImportError:
+    import StringIO
 
 from geventwebsocket import hybi, exceptions as exc
 
@@ -181,19 +185,20 @@ class DecodeHeaderTestCase(unittest.TestCase):
         """
         ValueError must be raised if the number of bytes supplied != 2
         """
-        self.assertRaises(ValueError, hybi.decode_header, '')
-        self.assertRaises(ValueError, hybi.decode_header, 'a')
-        # skip 2 bytes
-        self.assertRaises(ValueError, hybi.decode_header, 'aaa')
+        for data in ('', 'a', 'aaa'):
+            # skip 2 bytes
+            stream = StringIO(data)
 
-        try:
-            hybi.decode_header('aa')
-        except ValueError:
-            self.fail('ValueError raised when supplying 2 bytes')
-        except:
-            # there are other issues with the bytes but that is not the point
-            # of the test
-            pass
+            with self.assertRaises(exc.WebSocketError):
+                hybi.decode_header(stream)
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            hybi.decode_header(StringIO('aa'))
+
+        self.assertNotEqual(
+            'Unexpected EOF while decoding header',
+            unicode(ctx.exception)
+        )
 
     def test_rsv_bits(self):
         """
@@ -203,7 +208,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
             byte = chr(rsv_mask)
 
             with self.assertRaises(exc.WebSocketError) as ctx:
-                hybi.decode_header(byte + 'a')
+                hybi.decode_header(StringIO(byte + 'a'))
 
             self.assertTrue(unicode(ctx.exception).startswith(
                 'Received frame with non-zero reserved bits: '))
@@ -215,7 +220,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
         byte = chr(hybi.OPCODE_CLOSE)
 
         with self.assertRaises(exc.WebSocketError) as ctx:
-            hybi.decode_header(byte + 'a')
+            hybi.decode_header(StringIO(byte + 'a'))
 
         self.assertEqual(
             u"Received fragmented control frame: '\\x08a'",
@@ -230,7 +235,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
         byte = chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(0x7f)
 
         with self.assertRaises(exc.FrameTooLargeException) as ctx:
-            hybi.decode_header(byte)
+            hybi.decode_header(StringIO(byte))
 
         self.assertEqual(
             u"Control frame cannot be larger than 125 bytes: '\\x88\\x7f'",
@@ -241,23 +246,23 @@ class DecodeHeaderTestCase(unittest.TestCase):
         """
         Basic sanity checks for decoding a header.
         """
-        header = hybi.decode_header(
+        header = hybi.decode_header(StringIO(
             chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + '\x00'
-        )
+        ))
 
         # fin, opcode, mask, length
         self.assertEqual((True, 0x08, False, 0), header)
 
         # check the length
-        header = hybi.decode_header(
+        header = hybi.decode_header(StringIO(
             chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + '\x10'
-        )
+        ))
 
         self.assertEqual((True, 0x08, False, 16), header)
 
         # check the mask
-        header = hybi.decode_header(
+        header = hybi.decode_header(StringIO(
             chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(hybi.MASK_MASK)
-        )
+        ))
 
         self.assertEqual((True, 0x08, True, 0), header)
