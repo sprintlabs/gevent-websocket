@@ -224,7 +224,8 @@ def decode_header(stream):
     :param stream: A file like object that can be 'read' from.
     :returns: A tuple containing fin, opcode, has_mask, length.
     """
-    data = stream.read(2)
+    read = stream.read
+    data = read(2)
 
     if len(data) != 2:
         raise exc.WebSocketError('Unexpected EOF while decoding header')
@@ -256,7 +257,7 @@ def decode_header(stream):
 
     if length == 126:
         # 16 bit length
-        data = stream.read(2)
+        data = read(2)
 
         if len(data) != 2:
             raise exc.WebSocketError('Unexpected EOF while decoding header')
@@ -264,7 +265,7 @@ def decode_header(stream):
         length = struct.unpack('!H', data)[0]
     elif length == 127:
         # 64 bit length
-        data = stream.read(8)
+        data = read(8)
 
         if len(data) != 8:
             raise exc.WebSocketError('Unexpected EOF while decoding header')
