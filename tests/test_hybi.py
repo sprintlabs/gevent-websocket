@@ -79,7 +79,7 @@ class UpgradeConnectionTestCase(unittest.TestCase):
 
         handler = self.make_handler(environ=environ)
 
-        hybi.upgrade_connection(handler, environ)
+        response = hybi.upgrade_connection(handler, environ)
 
         expected_headers = [
             ('Sec-WebSocket-Version', '13, 8, 7')
@@ -87,3 +87,4 @@ class UpgradeConnectionTestCase(unittest.TestCase):
 
         self.assertEqual('400 Bad Request', handler.status)
         self.assertEqual(expected_headers, handler.headers)
+        self.assertEqual(response, ["Unsupported WebSocket Version: 'foobar'"])
