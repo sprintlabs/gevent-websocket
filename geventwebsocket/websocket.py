@@ -13,7 +13,7 @@ class WebSocket(object):
     :ivar _socket: The underlying socket object.
     :ivar _fobj: The file like object used to read from the connection.
     :ivar _read: Internal callable that will read from the connection. If an
-        error occured then this will return an empty string.
+        error occurred then this will return an empty string.
     :ivar _write: Internal callable that will write to the connection.
     """
 
