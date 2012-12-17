@@ -51,7 +51,7 @@ class UpgradeConnectionTestCase(unittest.TestCase):
 
         handler = self.make_handler(environ=environ)
 
-        hybi.upgrade_connection(handler, environ)
+        response = hybi.upgrade_connection(handler, environ)
 
         expected_headers = [
             ('Upgrade', 'websocket'),
@@ -60,6 +60,7 @@ class UpgradeConnectionTestCase(unittest.TestCase):
         ]
 
         self.assertEqual(handler.status, '101 Switching Protocols')
+        self.assertIsNone(response)
         self.assertEqual(expected_headers, handler.headers)
 
         # ensure that the environ dict has been appropriately updated
@@ -88,3 +89,64 @@ class UpgradeConnectionTestCase(unittest.TestCase):
         self.assertEqual('400 Bad Request', handler.status)
         self.assertEqual(expected_headers, handler.headers)
         self.assertEqual(response, ["Unsupported WebSocket Version: 'foobar'"])
+
+    def test_missing_key(self):
+        """
+        A missing Sec-WebSocket-Key must result in a 400 status
+        """
+        environ = {
+            'HTTP_SEC_WEBSOCKET_VERSION': '13',
+        }
+
+        handler = self.make_handler(environ=environ)
+
+        response = hybi.upgrade_connection(handler, environ)
+
+        self.assertEqual('400 Bad Request', handler.status)
+        self.assertEqual([], handler.headers)
+        self.assertEqual(
+            response,
+            ['Sec-WebSocket-Key header is missing/empty']
+        )
+
+    def test_empty_key(self):
+        """
+        An empty Sec-WebSocket-Key must result in a 400 status
+        """
+        environ = {
+            'HTTP_SEC_WEBSOCKET_VERSION': '13',
+            'HTTP_SEC_WEBSOCKET_KEY': '',
+        }
+
+        handler = self.make_handler(environ=environ)
+
+        response = hybi.upgrade_connection(handler, environ)
+
+        self.assertEqual('400 Bad Request', handler.status)
+        self.assertEqual([], handler.headers)
+        self.assertEqual(
+            response,
+            ['Sec-WebSocket-Key header is missing/empty']
+        )
+
+    def test_invalid_key(self):
+        """
+        A none base64 encoded Sec-WebSocket-Key must result in a 400 status
+        """
+        import base64
+        key = 'A=='
+
+        self.assertRaises(TypeError, base64.b64decode, key)
+
+        environ = {
+            'HTTP_SEC_WEBSOCKET_VERSION': '13',
+            'HTTP_SEC_WEBSOCKET_KEY': key,
+        }
+
+        handler = self.make_handler(environ=environ)
+
+        response = hybi.upgrade_connection(handler, environ)
+
+        self.assertEqual('400 Bad Request', handler.status)
+        self.assertEqual([], handler.headers)
+        self.assertEqual(response, ["Invalid key: 'A=='"])
