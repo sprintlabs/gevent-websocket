@@ -380,8 +380,10 @@ def upgrade_connection(handler):
 
         return [msg]
 
-    environ['wsgi.websocket'] = WebSocketHybi(handler.socket, environ)
-    environ['wsgi.websocket_version'] = 'hybi-%s' % version
+    environ.update({
+        'wsgi.websocket': WebSocketHybi(handler.socket, environ),
+        'wsgi.websocket_version': 'hybi-%s' % version
+    })
 
     headers = [
         ("Upgrade", "websocket"),
