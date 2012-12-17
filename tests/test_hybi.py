@@ -207,3 +207,15 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
             self.assertTrue(unicode(ctx.exception).startswith(
                 'Received frame with non-zero reserved bits: '))
+
+    def test_control_frame_fragmentation(self):
+        """
+        Page 36 of the spec specifies that control frames must not be fragmented
+        """
+        byte = chr(hybi.OPCODE_CLOSE)
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            hybi.decode_header(byte + 'a')
+
+        self.assertTrue(unicode(ctx.exception).startswith(
+            'Received fragmented control frame: '))

@@ -15,6 +15,10 @@ OPCODE_CLOSE = 0x08
 OPCODE_PING = 0x09
 OPCODE_PONG = 0x0a
 
+
+FIN_MASK = 0x80
+OPCODE_MASK = 0x0f
+
 # bitwise mask that will determine the reserved bits for a frame header
 HEADER_RSV_MASK = 0x40 | 0x20 | 0x10
 
@@ -287,8 +291,8 @@ def decode_header(data):
         raise exc.WebSocketError(
             'Received frame with non-zero reserved bits: %r' % (data,))
 
-    fin = first_byte & 0x80 == 0x80
-    opcode = first_byte & 0x0f
+    fin = first_byte & FIN_MASK == FIN_MASK
+    opcode = first_byte & OPCODE_MASK
 
     if opcode > 0x07 and fin == 0:
         raise exc.WebSocketError('Received fragmented control frame: %r' % (
