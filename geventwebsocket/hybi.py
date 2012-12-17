@@ -195,12 +195,8 @@ class WebSocketHybi(WebSocket):
 
         Set `code` to None if you just want to sever the connection.
         """
-        if not self.socket:
-            # already closing/closed.
+        if self.closed:
             return
-
-        self.socket = None
-        self._read = None
 
         if not code:
             super(WebSocketHybi, self).close()
