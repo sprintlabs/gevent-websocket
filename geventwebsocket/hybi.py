@@ -332,9 +332,8 @@ def upgrade_connection(handler, environ):
     version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
 
     if version not in SUPPORTED_VERSIONS:
-        msg = '400: Unsupported Version: %r' % (version,)
+        msg = 'Unsupported WebSocket Version: %r' % (version,)
 
-        handler.log_error(msg)
         handler.start_response('400 Bad Request', [
             ('Sec-WebSocket-Version', '13, 8, 7')
         ])
@@ -345,9 +344,8 @@ def upgrade_connection(handler, environ):
 
     if not key:
         # 5.2.1 (3)
-        msg = '400: Sec-WebSocket-Key header is missing/empty'
+        msg = 'Sec-WebSocket-Key header is missing/empty'
 
-        handler.log_error(msg)
         handler.start_response('400 Bad Request', [])
 
         return [msg]
@@ -355,18 +353,16 @@ def upgrade_connection(handler, environ):
     try:
         key_len = len(base64.b64decode(key))
     except TypeError:
-        msg = '400: Invalid key: %r' % (key,)
+        msg = 'Invalid key: %r' % (key,)
 
-        handler.log_error(msg)
         handler.start_response('400 Bad Request', [])
 
         return [msg]
 
     if key_len != 16:
         # 5.2.1 (3)
-        msg = '400: Invalid key: %r' % (key,)
+        msg = 'Invalid key: %r' % (key,)
 
-        handler.log_error(msg)
         handler.start_response('400 Bad Request', [])
 
         return [msg]
