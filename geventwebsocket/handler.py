@@ -83,9 +83,9 @@ class WebSocketHandler(WSGIHandler):
         result = None
 
         if self.environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
-            result = hybi.upgrade_connection(self)
+            result = hybi.upgrade_connection(self, self.environ)
         elif self.environ.get('HTTP_ORIGIN'):
-            result = hixie.upgrade_connection(self)
+            result = hixie.upgrade_connection(self, self.environ)
         else:
             return False
 

@@ -328,9 +328,7 @@ def encode_header(bytes, opcode):
     return header
 
 
-def upgrade_connection(handler):
-    environ = handler.environ
-
+def upgrade_connection(handler, environ):
     version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
 
     if version not in SUPPORTED_VERSIONS:

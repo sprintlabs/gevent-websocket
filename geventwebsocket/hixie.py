@@ -92,9 +92,7 @@ def _make_websocket(handler):
     handler.start_response("101 Web Socket Protocol Handshake", headers)
 
 
-def upgrade_connection(handler):
-    environ = handler.environ
-
+def upgrade_connection(handler, environ):
     key1 = environ.get('HTTP_SEC_WEBSOCKET_KEY1', None)
     key2 = environ.get('HTTP_SEC_WEBSOCKET_KEY2', None)
 
