@@ -1,6 +1,6 @@
 import unittest
 
-from geventwebsocket import hybi
+from geventwebsocket import hybi, exceptions as exc
 
 from .test_websocket import FakeSocket
 
@@ -194,3 +194,16 @@ class DecodeHeaderTestCase(unittest.TestCase):
             # there are other issues with the bytes but that is not the point
             # of the test
             pass
+
+    def test_rsv_bits(self):
+        """
+        If the RSV bits are set then raise a `WebSocketError`
+        """
+        for rsv_mask in [0x40, 0x20, 0x10]:
+            byte = chr(rsv_mask)
+
+            with self.assertRaises(exc.WebSocketError) as ctx:
+                hybi.decode_header(byte + 'a')
+
+            self.assertTrue(unicode(ctx.exception).startswith(
+                'Received frame with non-zero reserved bits: '))
