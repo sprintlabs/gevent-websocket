@@ -46,8 +46,11 @@ class WebSocketHandler(WSGIHandler):
 
             return
 
+        # so that `finalize_headers` doesn't spit out a Content-Length header
         self.provided_content_length = True
+        # the websocket is now controlling the response
         self.response_use_chunked = False
+        # once the request is over, the connection must be closed
         self.close_connection = True
 
         self._write_with_headers(None)
