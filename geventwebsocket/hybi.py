@@ -341,13 +341,6 @@ def upgrade_connection(handler, environ):
 
         return [msg]
 
-    # XXX: nobody seems to set SERVER_NAME correctly. check the spec
-    #if environ.get("HTTP_HOST") != environ.get("SERVER_NAME"):
-    #    # 5.2.1 (2)
-    #    handler.start_response('400 Bad Request', [])
-
-    #    return
-
     key = environ.get("HTTP_SEC_WEBSOCKET_KEY", '').strip()
 
     if not key:
