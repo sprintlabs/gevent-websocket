@@ -76,7 +76,7 @@ class WebSocketHandler(WSGIHandler):
             return False
 
         if not self.check_http_version():
-            self.start_response('400 Bad Request')
+            self.start_response('400 Bad Request', [])
 
             return False
 
