@@ -1,7 +1,5 @@
 import functools
 
-from gevent import lock
-
 
 __all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
 
