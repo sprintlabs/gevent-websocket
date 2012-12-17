@@ -68,3 +68,22 @@ class UpgradeConnectionTestCase(unittest.TestCase):
 
         self.assertEqual(version, 'hybi-13')
         self.assertIsInstance(ws, hybi.WebSocket)
+
+    def test_invalid_version(self):
+        """
+        An invalid Sec-WebSocket-Version must result in a 400 status
+        """
+        environ = {
+            'HTTP_SEC_WEBSOCKET_VERSION': 'foobar'
+        }
+
+        handler = self.make_handler(environ=environ)
+
+        hybi.upgrade_connection(handler, environ)
+
+        expected_headers = [
+            ('Sec-WebSocket-Version', '13, 8, 7')
+        ]
+
+        self.assertEqual('400 Bad Request', handler.status)
+        self.assertEqual(expected_headers, handler.headers)

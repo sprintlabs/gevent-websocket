@@ -335,7 +335,7 @@ def upgrade_connection(handler, environ):
         msg = '400: Unsupported Version: %r' % (version,)
 
         handler.log_error(msg)
-        handler.start_response('400 Unsupported Version', [
+        handler.start_response('400 Bad Request', [
             ('Sec-WebSocket-Version', '13, 8, 7')
         ])
 
