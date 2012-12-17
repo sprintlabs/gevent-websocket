@@ -236,3 +236,28 @@ class DecodeHeaderTestCase(unittest.TestCase):
             u"Control frame cannot be larger than 125 bytes: '\\x88\\x7f'",
             unicode(ctx.exception)
         )
+
+    def test_decode(self):
+        """
+        Basic sanity checks for decoding a header.
+        """
+        header = hybi.decode_header(
+            chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + '\x00'
+        )
+
+        # fin, opcode, mask, length
+        self.assertEqual((True, 0x08, False, 0), header)
+
+        # check the length
+        header = hybi.decode_header(
+            chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + '\x10'
+        )
+
+        self.assertEqual((True, 0x08, False, 16), header)
+
+        # check the mask
+        header = hybi.decode_header(
+            chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(hybi.MASK_MASK)
+        )
+
+        self.assertEqual((True, 0x08, True, 0), header)
