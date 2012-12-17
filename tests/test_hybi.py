@@ -150,3 +150,23 @@ class UpgradeConnectionTestCase(unittest.TestCase):
         self.assertEqual('400 Bad Request', handler.status)
         self.assertEqual([], handler.headers)
         self.assertEqual(response, ["Invalid key: 'A=='"])
+
+    def test_invalid_key_length(self):
+        """
+        A decoded key that is not of length 16 must result in a 400 status
+        """
+        import base64
+        key = 'a' * 17
+
+        environ = {
+            'HTTP_SEC_WEBSOCKET_VERSION': '13',
+            'HTTP_SEC_WEBSOCKET_KEY': base64.b64encode(key),
+        }
+
+        handler = self.make_handler(environ=environ)
+
+        response = hybi.upgrade_connection(handler, environ)
+
+        self.assertEqual('400 Bad Request', handler.status)
+        self.assertEqual([], handler.headers)
+        self.assertEqual(response, ["Invalid key: 'YWFhYWFhYWFhYWFhYWFhYWE='"])
