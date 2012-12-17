@@ -202,7 +202,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
     def test_rsv_bits(self):
         """
-        If the RSV bits are set then raise a `WebSocketError`
+        If the RSV bits are set then raise a `ProtocolError`
         """
         for rsv_mask in [0x40, 0x20, 0x10]:
             byte = chr(rsv_mask)

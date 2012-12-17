@@ -225,7 +225,7 @@ def decode_header(stream):
     """
     Decode a Hybi header.
 
-    :param data: A 2 byte string.
+    :param stream: A file like object that can be 'read' from.
     :returns: A tuple containing fin, opcode, has_mask, length.
     """
     data = stream.read(2)
