@@ -32,23 +32,3 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             environ['REQUEST_METHOD'] = method
 
         return MockHandler(environ, version)
-
-    def test_request_method(self):
-        """
-        A 400 response must be returned a GET method is not used.
-        """
-        for request_method in ['POST', 'PUT', 'DELETE', 'FOOBAR']:
-            handler = self.make_handler(request_method)
-
-            response = hybi.upgrade_connection(handler)
-
-            self.assertEqual(handler.status, '400 Bad Request')
-            self.assertEqual(handler.headers, [])
-            self.assertIsNone(response)
-
-        # now check the correct request method
-        handler = self.make_handler('GET')
-
-        response = hybi.upgrade_connection(handler)
-
-        self.assertNotEqual(handler.status, '400 Bad Request')

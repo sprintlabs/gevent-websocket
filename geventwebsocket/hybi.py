@@ -331,34 +331,6 @@ def encode_header(bytes, opcode):
 def upgrade_connection(handler):
     environ = handler.environ
 
-    # check client handshake for validity
-    if environ.get("REQUEST_METHOD") != "GET":
-        # 5.2.1 (1)
-        handler.start_response('400 Bad Request', [])
-
-        return
-
-    protocol, http_version = handler.request_version.split("/")
-
-    if protocol != "HTTP":
-        # 5.2.1 (1)
-        handler.start_response('400 Bad Request', [])
-
-        return
-
-    try:
-        http_version = float(http_version)
-    except ValueError:
-        handler.start_response('400 Bad Request', [])
-
-        return
-
-    if http_version < 1.1:
-        # 5.2.1 (1)
-        handler.start_response('400 Bad Request', [])
-
-        return
-
     version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
 
     if version not in SUPPORTED_VERSIONS:

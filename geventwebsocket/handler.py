@@ -69,6 +69,17 @@ class WebSocketHandler(WSGIHandler):
 
         :returns: Whether the upgrade was successful.
         """
+        # some basic sanity checks first
+        if self.environ.get("REQUEST_METHOD") != "GET":
+            self.start_response('400 Bad Request', [])
+
+            return False
+
+        if not self.check_http_version():
+            self.start_response('400 Bad Request')
+
+            return False
+
         result = None
 
         if self.environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
@@ -80,6 +91,25 @@ class WebSocketHandler(WSGIHandler):
             # could not upgrade the connection
             self.result = result or []
 
+            return False
+
+        return True
+
+    def check_http_version(self):
+        if not self.request_version:
+            return False
+
+        protocol, http_version = self.request_version.split("/")
+
+        if protocol != "HTTP":
+            return False
+
+        try:
+            http_version = float(http_version)
+        except ValueError:
+            return False
+
+        if http_version < 1.1:
             return False
 
         return True
