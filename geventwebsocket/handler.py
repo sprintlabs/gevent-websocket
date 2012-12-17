@@ -17,8 +17,8 @@ class WebSocketHandler(WSGIHandler):
 
     before calling handle_one_response().  This is useful if you want to do
     more things before calling the app, and want to off-load the WebSocket
-    negotiations to this library.  Socket.IO needs this for example, to
-    send the 'ack' before yielding the control to your WSGI app.
+    negotiations to this library.  Socket.IO needs this for example, to send
+    the 'ack' before yielding the control to your WSGI app.
     """
 
     @property
