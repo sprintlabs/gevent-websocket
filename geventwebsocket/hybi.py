@@ -329,6 +329,17 @@ def encode_header(bytes, opcode):
 
 
 def upgrade_connection(handler, environ):
+    """
+    Validate and 'upgrade' the HTTP request to a WebSocket request.
+
+    If an upgrade succeeded then then handler will have `start_response` with a
+    status of `101`, the environ will also be updated with `wsgi.websocket` and
+    `wsgi.websocket_version` keys.
+
+    :param handler: The WSGI handler providing the HTTP request context.
+    :param environ: The HTTP environ dict.
+    :return: The WSGI response iterator is something went awry.
+    """
     version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
 
     if version not in SUPPORTED_VERSIONS:
