@@ -229,7 +229,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
         """
         byte = chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(0x7f)
 
-        with self.assertRaises(exc.WebSocketError) as ctx:
+        with self.assertRaises(exc.FrameTooLargeException) as ctx:
             hybi.decode_header(byte)
 
         self.assertEqual(
