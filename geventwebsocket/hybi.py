@@ -19,6 +19,7 @@ OPCODE_PONG = 0x0a
 FIN_MASK = 0x80
 OPCODE_MASK = 0x0f
 MASK_MASK = 0x80
+LENGTH_MASK = 0x7f
 
 # bitwise mask that will determine the reserved bits for a frame header
 HEADER_RSV_MASK = 0x40 | 0x20 | 0x10
@@ -300,7 +301,7 @@ def decode_header(data):
             data,))
 
     has_mask = second_byte & MASK_MASK == MASK_MASK
-    length = second_byte & 0x7f
+    length = second_byte & LENGTH_MASK
 
     # Control frames MUST have a payload length of 125 bytes or less
     if opcode > 0x07 and length > 125:
