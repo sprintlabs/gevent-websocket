@@ -170,3 +170,27 @@ class UpgradeConnectionTestCase(unittest.TestCase):
         self.assertEqual('400 Bad Request', handler.status)
         self.assertEqual([], handler.headers)
         self.assertEqual(response, ["Invalid key: 'YWFhYWFhYWFhYWFhYWFhYWE='"])
+
+
+class DecodeHeaderTestCase(unittest.TestCase):
+    """
+    Tests for `hybi.decode_header`
+    """
+
+    def test_bad_length(self):
+        """
+        ValueError must be raised if the number of bytes supplied != 2
+        """
+        self.assertRaises(ValueError, hybi.decode_header, '')
+        self.assertRaises(ValueError, hybi.decode_header, 'a')
+        # skip 2 bytes
+        self.assertRaises(ValueError, hybi.decode_header, 'aaa')
+
+        try:
+            hybi.decode_header('aa')
+        except ValueError:
+            self.fail('ValueError raised when supplying 2 bytes')
+        except:
+            # there are other issues with the bytes but that is not the point
+            # of the test
+            pass
