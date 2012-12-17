@@ -217,5 +217,22 @@ class DecodeHeaderTestCase(unittest.TestCase):
         with self.assertRaises(exc.WebSocketError) as ctx:
             hybi.decode_header(byte + 'a')
 
-        self.assertTrue(unicode(ctx.exception).startswith(
-            'Received fragmented control frame: '))
+        self.assertEqual(
+            u"Received fragmented control frame: '\\x08a'",
+            unicode(ctx.exception)
+        )
+
+    def test_control_frame_size(self):
+        """
+        Page 37 of the spec specifies that control frames must not have a length
+        of greater that 125.
+        """
+        byte = chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(0x7f)
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            hybi.decode_header(byte)
+
+        self.assertEqual(
+            u"Control frame cannot be larger than 125 bytes: '\\x88\\x7f'",
+            unicode(ctx.exception)
+        )

@@ -303,8 +303,8 @@ def decode_header(data):
 
     # Control frames MUST have a payload length of 125 bytes or less
     if opcode > 0x07 and length > 125:
-        raise exc.FrameTooLargeException('Control frame payload cannot be'
-                                         'larger than 125 bytes: %r' % (data,))
+        raise exc.FrameTooLargeException('Control frame cannot be larger than '
+                                         '125 bytes: %r' % (data,))
 
     return fin, opcode, has_mask, length
 
