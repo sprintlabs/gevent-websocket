@@ -34,7 +34,6 @@ class WebSocketHandler(WSGIHandler):
             if connection == 'upgrade':
                 if not self.upgrade_websocket() and self.status:
                     # the request was handled, probably with an error status
-                    self.result = self.result or []
                     self.process_result()
 
                     return
@@ -90,6 +89,8 @@ class WebSocketHandler(WSGIHandler):
 
         if self.status and not self.status.startswith('101 '):
             # could not upgrade the connection
+            self.result = result or []
+
             return False
 
         return True
