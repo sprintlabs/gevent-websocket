@@ -50,7 +50,6 @@ class UpgradeConnectionTestCase(unittest.TestCase):
         }
 
         handler = self.make_handler(environ=environ)
-        handler.socket = FakeSocket()
 
         hybi.upgrade_connection(handler, environ)
 
@@ -62,3 +61,10 @@ class UpgradeConnectionTestCase(unittest.TestCase):
 
         self.assertEqual(handler.status, '101 Switching Protocols')
         self.assertEqual(expected_headers, handler.headers)
+
+        # ensure that the environ dict has been appropriately updated
+        ws = environ['wsgi.websocket']
+        version = environ['wsgi.websocket_version']
+
+        self.assertEqual(version, 'hybi-13')
+        self.assertIsInstance(ws, hybi.WebSocket)
