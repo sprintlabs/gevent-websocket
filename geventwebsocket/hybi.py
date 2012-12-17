@@ -237,7 +237,7 @@ def decode_header(stream):
 
     if first_byte & HEADER_RSV_MASK:
         # one of the reserved bits is set, bail
-        raise exc.WebSocketError(
+        raise exc.ProtocolError(
             'Received frame with non-zero reserved bits: %r' % (data,))
 
     fin = first_byte & FIN_MASK == FIN_MASK
@@ -247,7 +247,7 @@ def decode_header(stream):
 
     if opcode > 0x07:
         if fin == 0:
-            raise exc.WebSocketError(
+            raise exc.ProtocolError(
                 'Received fragmented control frame: %r' % (data,))
 
         # Control frames MUST have a payload length of 125 bytes or less

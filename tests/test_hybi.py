@@ -207,7 +207,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
         for rsv_mask in [0x40, 0x20, 0x10]:
             byte = chr(rsv_mask)
 
-            with self.assertRaises(exc.WebSocketError) as ctx:
+            with self.assertRaises(exc.ProtocolError) as ctx:
                 hybi.decode_header(StringIO(byte + 'a'))
 
             self.assertTrue(unicode(ctx.exception).startswith(
@@ -219,7 +219,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
         """
         byte = chr(hybi.OPCODE_CLOSE)
 
-        with self.assertRaises(exc.WebSocketError) as ctx:
+        with self.assertRaises(exc.ProtocolError) as ctx:
             hybi.decode_header(StringIO(byte + 'a'))
 
         self.assertEqual(
