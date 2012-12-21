@@ -266,3 +266,90 @@ class DecodeHeaderTestCase(unittest.TestCase):
         ))
 
         self.assertEqual((True, 0x08, True, 0), header)
+
+
+class EncodeHeaderTestCase(unittest.TestCase):
+    """
+    Tests for `hybi.encode_header`
+    """
+
+    def test_fin(self):
+        """
+        Ensure that the fin is applied correctly
+        """
+        header = chr(hybi.FIN_MASK) + '\x00'
+
+        self.assertEqual(header, hybi.encode_header(
+            True,  # fin
+            False, # rsv0
+            False, # rsv1
+            False, # rsv2
+            0,     # opcode
+            False, # mask
+            0      # length
+        ))
+
+    def test_not_fin(self):
+        """
+        Unfinished frame.
+        """
+        header = '\x00\x00'
+
+        self.assertEqual(header, hybi.encode_header(
+            False, # fin
+            False, # rsv0
+            False, # rsv1
+            False, # rsv2
+            0,     # opcode
+            False, # mask
+            0      # length
+        ))
+
+    def test_rsv0(self):
+        """
+        Test all basic permutations of rsv0
+        """
+        header = '\x40\x00'
+
+        self.assertEqual(header, hybi.encode_header(
+            False, # fin
+            True,  # rsv0
+            False, # rsv1
+            False, # rsv2
+            0,     # opcode
+            False, # mask
+            0      # length
+        ))
+
+    def test_rsv1(self):
+        """
+        Test all basic permutations of rsv1
+        """
+        header = '\x20\x00'
+
+        self.assertEqual(header, hybi.encode_header(
+            False, # fin
+            False, # rsv0
+            True,  # rsv1
+            False, # rsv2
+            0,     # opcode
+            False, # mask
+            0      # length
+        ))
+
+    def test_rsv2(self):
+        """
+        Test all basic permutations of rsv2
+        """
+        header = '\x10\x00'
+
+        self.assertEqual(header, hybi.encode_header(
+            False, # fin
+            False, # rsv0
+            False, # rsv1
+            True,  # rsv2
+            0,     # opcode
+            False, # mask
+            0      # length
+        ))
+

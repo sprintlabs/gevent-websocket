@@ -20,8 +20,12 @@ OPCODE_MASK = 0x0f
 MASK_MASK = 0x80
 LENGTH_MASK = 0x7f
 
+RSV0_MASK = 0x40
+RSV1_MASK = 0x20
+RSV2_MASK = 0x10
+
 # bitwise mask that will determine the reserved bits for a frame header
-HEADER_RSV_MASK = 0x40 | 0x20 | 0x10
+HEADER_RSV_MASK = RSV0_MASK | RSV1_MASK | RSV2_MASK
 
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -277,27 +281,51 @@ def decode_header(stream):
     return fin, opcode, has_mask, length
 
 
-def encode_header(bytes, opcode):
+def encode_header(fin, rsv0, rsv1, rsv2, opcode, mask, length):
     """
     Encodes a Hybi header.
 
-    :param bytes: The payload of the header.
-    :param opcode: The opcode of the header.
+    :param fin: Whether this is the final frame for this opcode.
+    :param rsv0: Whether the RSV0 bit is set.
+    :param rsv1: Whether the RSV1 bit is set.
+    :param rsv2: Whether the RSV2 bit is set.
+    :param opcode: The opcode of the payload, see `OPCODE_*`
+    :param mask: Whether the payload is masked.
+    :param length: The length of the frame.
     :return: A bytestring encoded header.
     """
-    header = chr(0x80 | opcode)
-    msg_length = len(bytes)
+    first_byte = opcode
+    second_byte = 0
+    extra = ''
 
-    if msg_length < 126:
-        header += chr(msg_length)
-    elif msg_length < (1 << 16):
-        header += '\x7e' + struct.pack('!H', msg_length)
-    elif msg_length < (1 << 63):
-        header += '\x7f' + struct.pack('!Q', msg_length)
+    if fin:
+        first_byte |= FIN_MASK
+
+    if rsv0:
+        first_byte |= RSV0_MASK
+
+    if rsv1:
+        first_byte |= RSV1_MASK
+
+    if rsv2:
+        first_byte |= RSV2_MASK
+
+    if mask:
+        second_byte |= MASK_MASK
+
+    # now deal with length complexities
+    if length < 126:
+        second_byte += length
+    elif length < (1 << 16):
+        second_byte += 126
+        extra = struct.pack('!H', length)
+    elif length < (1 << 63):
+        second_byte += 127
+        extra = struct.pack('!Q', msg_length)
     else:
         raise exc.FrameTooLargeException
 
-    return header
+    return chr(first_byte) + chr(second_byte) + extra
 
 
 def upgrade_connection(handler, environ):
