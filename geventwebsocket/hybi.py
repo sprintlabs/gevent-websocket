@@ -275,8 +275,6 @@ def decode_header(stream):
             raise exc.WebSocketError('Unexpected EOF while decoding header')
 
         length = struct.unpack('!Q', data)[0]
-    else:
-        raise exc.ProtocolError('Malformed header %r' % (data,))
 
     return fin, opcode, has_mask, length
 

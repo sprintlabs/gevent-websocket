@@ -267,6 +267,84 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
         self.assertEqual((True, 0x08, True, 0), header)
 
+    def test_length_126_no_trailing(self):
+        """
+        Reading a header with a length of 126 that is missing the 2 trailing
+        bytes should result in a WebSocketError.
+        """
+        data = StringIO('\x00\x7e')
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            hybi.decode_header(data)
+
+        self.assertEqual(
+            'Unexpected EOF while decoding header',
+            unicode(ctx.exception)
+        )
+
+    def test_length_126_actual(self):
+        """
+        The correct length should be decoded when reading a 126 length header.
+        """
+        data = StringIO('\x00\x7e\x00\x00')
+
+        header = hybi.decode_header(data)
+
+        self.assertEqual(
+            (False, 0, False, 0),
+            header
+        )
+
+    def test_length_127_no_trailing(self):
+        """
+        A header with base length 127 should read another 8 bytes of trailing
+        data.
+        """
+        for i in xrange(0, 8):
+            data = StringIO('\x00\x7f' + ('\x00' * i))
+
+            with self.assertRaises(exc.WebSocketError) as ctx:
+                hybi.decode_header(data)
+
+            self.assertEqual(
+                'Unexpected EOF while decoding header',
+                unicode(ctx.exception)
+            )
+
+    def test_length_127_actual(self):
+        """
+        8 bytes should be decoded when reading a 127 base length header
+        """
+        data = StringIO('\x00\x7f' + ('\x00' * 8))
+
+        header = hybi.decode_header(data)
+
+        self.assertEqual(
+            (False, 0, False, 0),
+            header
+        )
+
+    def test_length_127_unsigned(self):
+        """
+        Ensure that the 8 byte header is unsigned
+        """
+        data = StringIO('\x00\x7f' + ('\xff' * 8))
+        header = hybi.decode_header(data)
+
+        self.assertEqual(
+            (False, 0, False, 0xffffffffffffffff),
+            header
+        )
+
+        print data.tell()
+
+    def test_length_128(self):
+        """
+        A base length of 128 should cause a `ProtocolError`
+        """
+        data = StringIO('\x00\x80')
+        header = hybi.decode_header(data)
+
 
 class EncodeHeaderTestCase(unittest.TestCase):
     """
