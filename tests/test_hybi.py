@@ -336,15 +336,6 @@ class DecodeHeaderTestCase(unittest.TestCase):
             header
         )
 
-        print data.tell()
-
-    def test_length_128(self):
-        """
-        A base length of 128 should cause a `ProtocolError`
-        """
-        data = StringIO('\x00\x80')
-        header = hybi.decode_header(data)
-
 
 class EncodeHeaderTestCase(unittest.TestCase):
     """
