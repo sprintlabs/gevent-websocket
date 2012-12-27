@@ -314,12 +314,12 @@ def encode_header(fin, rsv0, rsv1, rsv2, opcode, mask, length):
     # now deal with length complexities
     if length < 126:
         second_byte += length
-    elif length < (1 << 16):
+    elif length <= 0xffff:
         second_byte += 126
         extra = struct.pack('!H', length)
-    elif length < (1 << 63):
+    elif length <= 0xffffffffffffffff:
         second_byte += 127
-        extra = struct.pack('!Q', msg_length)
+        extra = struct.pack('!Q', length)
     else:
         raise exc.FrameTooLargeException
 

@@ -422,3 +422,80 @@ class EncodeHeaderTestCase(unittest.TestCase):
             0      # length
         ))
 
+    def test_mask(self):
+        """
+        Test setting a mask
+        """
+        header = '\x00\x80'
+
+        self.assertEqual(header, hybi.encode_header(
+            False, # fin
+            False, # rsv0
+            False, # rsv1
+            False, # rsv2
+            0,     # opcode
+            True,  # mask
+            0      # length
+        ))
+
+    def test_length_lt_126(self):
+        """
+        Test setting a length less than 126
+        """
+        for i in xrange(0, 126):
+            self.assertEqual('\x00' + chr(i), hybi.encode_header(
+                False,
+                False,
+                False,
+                False,
+                0,
+                False,
+                i
+            ))
+
+        self.assertNotEqual('\x00' + chr(126), hybi.encode_header(
+            False, False, False, False, 0, False, 126))
+
+    def test_length_lte_0xffff(self):
+        """
+        Encoding a header length of >=126 <= 1<<16 results in a 2 byte extended
+        header
+        """
+        def encode_header(length):
+            base_header = [False, False, False, False, 0, False]
+
+            return hybi.encode_header(*(base_header + [length]))
+
+        self.assertEqual('\x00\x7e\x00\x7e', encode_header(126))
+        self.assertEqual('\x00\x7e\xff\xff', encode_header(0xffff))
+
+    def test_length_lte_0xffffffff(self):
+        """
+        Encoding a header length of > 0xffff <= 0xfffffffff results in an 8
+        byte extended header.
+        """
+        def encode_header(length):
+            base_header = [False, False, False, False, 0, False]
+
+            return hybi.encode_header(*(base_header + [length]))
+
+        self.assertEqual(
+            '\x00\x7f\x00\x00\x00\x00\x00\x01\x00\x00',
+            encode_header(0xffff + 1)
+        )
+        self.assertEqual(
+            '\x00\x7f' + ('\xff' * 8),
+            encode_header(0xffffffffffffffff)
+        )
+
+    def test_length_gt_64bit(self):
+        """
+        Encoding a header > 1 << 64 MUST result in a `FrameTooLargeException`
+        """
+        def encode_header(length):
+            base_header = [False, False, False, False, 0, False]
+
+            return hybi.encode_header(*(base_header + [length]))
+
+        self.assertRaises(exc.FrameTooLargeException,
+                          encode_header, (1 << 64) + 1)
