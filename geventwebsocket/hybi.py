@@ -313,17 +313,15 @@ def decode_header(stream):
     return header
 
 
-def encode_header(fin, rsv0, rsv1, rsv2, opcode, mask, length):
+def encode_header(fin, opcode, mask, length, flags):
     """
     Encodes a Hybi header.
 
     :param fin: Whether this is the final frame for this opcode.
-    :param rsv0: Whether the RSV0 bit is set.
-    :param rsv1: Whether the RSV1 bit is set.
-    :param rsv2: Whether the RSV2 bit is set.
     :param opcode: The opcode of the payload, see `OPCODE_*`
     :param mask: Whether the payload is masked.
     :param length: The length of the frame.
+    :param flags: The RSV* flags.
     :return: A bytestring encoded header.
     """
     first_byte = opcode
@@ -333,17 +331,14 @@ def encode_header(fin, rsv0, rsv1, rsv2, opcode, mask, length):
     if fin:
         first_byte |= FIN_MASK
 
-    if rsv0:
+    if flags & RSV0_MASK:
         first_byte |= RSV0_MASK
 
-    if rsv1:
+    if flags & RSV1_MASK:
         first_byte |= RSV1_MASK
 
-    if rsv2:
+    if flags & RSV2_MASK:
         first_byte |= RSV2_MASK
-
-    if mask:
-        second_byte |= MASK_MASK
 
     # now deal with length complexities
     if length < 126:
@@ -356,6 +351,11 @@ def encode_header(fin, rsv0, rsv1, rsv2, opcode, mask, length):
         extra = struct.pack('!Q', length)
     else:
         raise exc.FrameTooLargeException
+
+    if mask:
+        second_byte |= MASK_MASK
+
+        extra += mask
 
     return chr(first_byte) + chr(second_byte) + extra
 
