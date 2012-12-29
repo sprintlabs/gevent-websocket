@@ -43,6 +43,35 @@ class ConnectionClosed(Exception):
         self.message = message
 
 
+class Header(object):
+    __slots__ = (
+        'fin',
+        'mask',
+        'opcode',
+        'flags',
+        'length'
+    )
+
+    def __init__(self):
+        self.fin = 0
+        self.mask = ''
+        self.opcode = 0
+        self.flags = 0
+        self.length = 0
+
+    def mask_payload(self, payload):
+        payload = bytearray(payload)
+        mask = self.mask
+
+        for i in xrange(self.length):
+            payload[i] ^= mask[i % 4]
+
+        return str(payload)
+
+    # it's the same operation
+    unmask_payload = mask_payload
+
+
 class WebSocketHybi(WebSocket):
     def _decode_bytes(self, bytes):
         if not bytes:
@@ -226,7 +255,7 @@ def decode_header(stream):
     Decode a Hybi header.
 
     :param stream: A file like object that can be 'read' from.
-    :returns: A tuple containing fin, opcode, has_mask, length.
+    :returns: A `Header` instance.
     """
     read = stream.read
     data = read(2)
@@ -235,48 +264,53 @@ def decode_header(stream):
         raise exc.WebSocketError('Unexpected EOF while decoding header')
 
     first_byte, second_byte = struct.unpack('!BB', data)
+    header = Header()
 
-    if first_byte & HEADER_RSV_MASK:
-        # one of the reserved bits is set, bail
-        raise exc.ProtocolError(
-            'Received frame with non-zero reserved bits: %r' % (data,))
-
-    fin = first_byte & FIN_MASK == FIN_MASK
-    opcode = first_byte & OPCODE_MASK
+    header.fin = first_byte & FIN_MASK == FIN_MASK
+    header.opcode = first_byte & OPCODE_MASK
+    header.flags = first_byte & HEADER_FLAG_MASK
+    header.length = second_byte & LENGTH_MASK
     has_mask = second_byte & MASK_MASK == MASK_MASK
-    length = second_byte & LENGTH_MASK
 
-    if opcode > 0x07:
-        if not fin:
+    if has_mask:
+        mask = read(4)
+
+        if len(mask) != 4:
+            raise exc.WebSocketError('Unexpected EOF while decoding header')
+
+        header.mask = mask
+
+    if header.opcode > 0x07:
+        if not header.fin:
             raise exc.ProtocolError(
                 'Received fragmented control frame: %r' % (data,))
 
         # Control frames MUST have a payload length of 125 bytes or less
-        if length > 125:
+        if header.length > 125:
             raise exc.FrameTooLargeException(
                 'Control frame cannot be larger than 125 bytes: %r' % (data,))
 
-    if length < 125:
-        return fin, opcode, has_mask, length
+    if header.length < 125:
+        return header
 
-    if length == 126:
+    if header.length == 126:
         # 16 bit length
         data = read(2)
 
         if len(data) != 2:
             raise exc.WebSocketError('Unexpected EOF while decoding header')
 
-        length = struct.unpack('!H', data)[0]
-    elif length == 127:
+        header.length = struct.unpack('!H', data)[0]
+    elif header.length == 127:
         # 64 bit length
         data = read(8)
 
         if len(data) != 8:
             raise exc.WebSocketError('Unexpected EOF while decoding header')
 
-        length = struct.unpack('!Q', data)[0]
+        header.length = struct.unpack('!Q', data)[0]
 
-    return fin, opcode, has_mask, length
+    return header
 
 
 def encode_header(fin, rsv0, rsv1, rsv2, opcode, mask, length):

@@ -183,22 +183,19 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
     def test_bad_length(self):
         """
-        ValueError must be raised if the number of bytes supplied != 2
+        `exc.WebSocketError` must be raised if the number of bytes supplied < 2
         """
-        for data in ('', 'a', 'aaa'):
+        for data in ('', '\x00'):
             # skip 2 bytes
             stream = StringIO(data)
 
-            with self.assertRaises(exc.WebSocketError):
+            with self.assertRaises(exc.WebSocketError) as ctx:
                 hybi.decode_header(stream)
 
-        with self.assertRaises(exc.WebSocketError) as ctx:
-            hybi.decode_header(StringIO('aa'))
-
-        self.assertNotEqual(
-            'Unexpected EOF while decoding header',
-            unicode(ctx.exception)
-        )
+            self.assertEqual(
+                u'Unexpected EOF while decoding header',
+                unicode(ctx.exception)
+            )
 
     def test_rsv_bits(self):
         """
@@ -207,11 +204,9 @@ class DecodeHeaderTestCase(unittest.TestCase):
         for rsv_mask in [0x40, 0x20, 0x10]:
             byte = chr(rsv_mask)
 
-            with self.assertRaises(exc.ProtocolError) as ctx:
-                hybi.decode_header(StringIO(byte + 'a'))
+            header = hybi.decode_header(StringIO(byte + '\x00'))
 
-            self.assertTrue(unicode(ctx.exception).startswith(
-                'Received frame with non-zero reserved bits: '))
+            self.assertEqual(header.flags, rsv_mask)
 
     def test_control_frame_fragmentation(self):
         """
@@ -251,21 +246,36 @@ class DecodeHeaderTestCase(unittest.TestCase):
         ))
 
         # fin, opcode, mask, length
-        self.assertEqual((True, 0x08, False, 0), header)
+        self.assertTrue(header.fin)
+        self.assertEqual(header.opcode, 0x08)
+        self.assertEqual(header.mask, '')
+        self.assertEqual(header.length, 0)
+        self.assertEqual(header.flags, 0)
 
         # check the length
         header = hybi.decode_header(StringIO(
             chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + '\x10'
         ))
 
-        self.assertEqual((True, 0x08, False, 16), header)
+        self.assertTrue(header.fin)
+        self.assertEqual(header.opcode, 0x08)
+        self.assertEqual(header.mask, '')
+        # this is changed ..
+        self.assertEqual(header.length, 16)
+        self.assertEqual(header.flags, 0)
 
         # check the mask
-        header = hybi.decode_header(StringIO(
-            chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(hybi.MASK_MASK)
-        ))
+        data = StringIO(
+            chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(hybi.MASK_MASK) +
+            'abcd' # this is the mask data
+        )
+        header = hybi.decode_header(data)
 
-        self.assertEqual((True, 0x08, True, 0), header)
+        self.assertTrue(header.fin)
+        self.assertEqual(header.opcode, 0x08)
+        self.assertEqual(header.mask, 'abcd')
+        self.assertEqual(header.length, 0)
+        self.assertEqual(header.flags, 0)
 
     def test_length_126_no_trailing(self):
         """
@@ -290,10 +300,11 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
         header = hybi.decode_header(data)
 
-        self.assertEqual(
-            (False, 0, False, 0),
-            header
-        )
+        self.assertFalse(header.fin)
+        self.assertEqual(header.opcode, 0x00)
+        self.assertEqual(header.mask, '')
+        self.assertEqual(header.length, 0)
+        self.assertEqual(header.flags, 0)
 
     def test_length_127_no_trailing(self):
         """
@@ -319,10 +330,11 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
         header = hybi.decode_header(data)
 
-        self.assertEqual(
-            (False, 0, False, 0),
-            header
-        )
+        self.assertFalse(header.fin)
+        self.assertEqual(header.opcode, 0x00)
+        self.assertEqual(header.mask, '')
+        self.assertEqual(header.length, 0)
+        self.assertEqual(header.flags, 0)
 
     def test_length_127_unsigned(self):
         """
@@ -331,10 +343,11 @@ class DecodeHeaderTestCase(unittest.TestCase):
         data = StringIO('\x00\x7f' + ('\xff' * 8))
         header = hybi.decode_header(data)
 
-        self.assertEqual(
-            (False, 0, False, 0xffffffffffffffff),
-            header
-        )
+        self.assertFalse(header.fin)
+        self.assertEqual(header.opcode, 0x00)
+        self.assertEqual(header.mask, '')
+        self.assertEqual(header.length, 0xffffffffffffffff)
+        self.assertEqual(header.flags, 0)
 
 
 class EncodeHeaderTestCase(unittest.TestCase):
