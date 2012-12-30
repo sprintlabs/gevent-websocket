@@ -1,4 +1,6 @@
 import unittest
+from mock import patch
+
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -349,6 +351,24 @@ class DecodeHeaderTestCase(unittest.TestCase):
         self.assertEqual(header.length, 0xffffffffffffffff)
         self.assertEqual(header.flags, 0)
 
+    def test_missing_mask(self):
+        """
+        Ensure that the 8 byte header is unsigned
+        """
+        # check the mask
+        data = StringIO(
+            chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(hybi.MASK_MASK) +
+            'abc' # this is the mask data
+        )
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            hybi.decode_header(data)
+
+        self.assertEqual(
+            'Unexpected EOF while decoding header',
+            unicode(ctx.exception)
+        )
+
 
 class EncodeHeaderTestCase(unittest.TestCase):
     """
@@ -493,3 +513,284 @@ class EncodeHeaderTestCase(unittest.TestCase):
         """
         self.assertRaises(exc.FrameTooLargeException,
                           self.encode_header, (1 << 64) + 1)
+
+
+class BaseStreamTestCase(unittest.TestCase):
+    def make_socket(self, data):
+        return FakeSocket(data)
+
+    def make_websocket(self, socket=None, environ=None):
+        socket = socket or FakeSocket()
+        environ = environ or {}
+
+        return hybi.WebSocketHybi(socket, environ)
+
+
+class FrameReadingTestCase(BaseStreamTestCase):
+    """
+    Tests for `WebSocketHybi.read_frame`
+    """
+
+    def test_not_enough_data(self):
+        """
+        If the socket does not return enough data when reading a header (i.e.
+        the socket died) then a `WebSocketError` must be raised.
+        """
+        socket = self.make_socket('')
+        ws = self.make_websocket(socket)
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            ws.read_frame()
+
+        self.assertEqual(
+            u'Unexpected EOF while decoding header',
+            unicode(ctx.exception)
+        )
+
+    def test_empty_header(self):
+        """
+        Reading a header with no payload must return correctly.
+        """
+        socket = self.make_socket('\x00\x00')
+        ws = self.make_websocket(socket)
+
+        header, payload = ws.read_frame()
+
+        self.assertEqual(payload, '')
+
+        # ensure that only 2 bytes were read
+        self.assertEqual(socket.tell(), 2)
+
+    def test_good_header_missing_payload(self):
+        """
+        Simulate the socket dying after reading a header.
+        """
+        # payload of 1 byte
+        socket = self.make_socket('\x00\x01')
+        ws = self.make_websocket(socket)
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            ws.read_frame()
+
+        self.assertEqual(
+            'Unexpected EOF reading frame payload',
+            unicode(ctx.exception)
+        )
+
+    def test_read_frame(self):
+        """
+        Ensure that reading a header and payload works as expected.
+        """
+        # payload of 1 byte
+        socket = self.make_socket('\x00\x06foobar')
+        ws = self.make_websocket(socket)
+
+        header, payload = ws.read_frame()
+
+        self.assertEqual(payload, 'foobar')
+
+    def test_masked_payload(self):
+        """
+        Ensure that a masked header+frame are decoded correctly.
+        """
+        socket = self.make_socket(
+            # from the spec document
+            '\x81\x85\x37\xfa\x21\x3d\x7f\x9f\x4d\x51\x58')
+        ws = self.make_websocket(socket)
+
+        header, payload = ws.read_frame()
+
+        self.assertEqual(payload, 'Hello')
+        self.assertEqual(header.mask, '7\xfa!=')
+
+
+class MessageReadingTestCase(BaseStreamTestCase):
+    """
+    Tests for `WebSocketHybi.read_message`
+    """
+
+    def make_websocket(self, *args):
+        """
+        :param args: triplets of fin, opcode, payload
+        """
+        data = ''
+
+        for i in xrange(0, len(args), 3):
+            fin, opcode, payload = args[i], args[i + 1], args[i + 2]
+
+            data += hybi.encode_header(fin, opcode, '', len(payload), 0)
+            data += payload
+
+        socket = self.make_socket(data)
+        ws = hybi.WebSocketHybi(socket, {})
+
+        return ws
+
+    def test_single_frame_text(self):
+        """
+        Ensure that a single, contained frame is decoded correctly.
+        """
+        ws = self.make_websocket(True, hybi.OPCODE_TEXT, 'foo')
+
+        msg = ws.read_message()
+
+        self.assertIsInstance(msg, unicode)
+        self.assertEqual(msg, 'foo')
+
+    def test_single_frame_bad_utf8(self):
+        """
+        A text frame with bad utf-8 data must close the websocket
+        """
+        data = '\xff\xff'
+
+        self.assertRaises(UnicodeDecodeError, data.decode, 'utf-8')
+
+        ws = self.make_websocket(True, hybi.OPCODE_TEXT, data)
+
+        self.assertFalse(ws.closed)
+
+        self.assertRaises(UnicodeDecodeError, ws.read_message)
+        self.assertTrue(ws.closed)
+
+    def test_multiple_continuous_frames(self):
+        """
+        `read_message` must return the full message with payloads split over
+        multiple frames.
+        """
+        ws = self.make_websocket(
+            False, hybi.OPCODE_TEXT, 'foo',
+            True, hybi.OPCODE_CONTINUATION, 'bar',
+        )
+
+        msg = ws.read_message()
+
+        self.assertIsInstance(msg, unicode)
+        self.assertEqual(msg, 'foobar')
+
+    def test_continuation_frame_bad_state(self):
+        """
+        Reading a continuation frame when there has been no previous frame
+        definition must raise a `exc.ProtocolError`.
+        """
+        ws = self.make_websocket(
+            True, hybi.OPCODE_CONTINUATION, '',
+        )
+
+        with self.assertRaises(exc.ProtocolError) as ctx:
+            ws.read_message()
+
+        self.assertEqual(
+            u'Unexpected frame with opcode=0',
+            unicode(ctx.exception)
+        )
+
+    def test_multiple_text_frames(self):
+        """
+        Reading a text frame when the first has not finished must raise a
+        `exc.ProtocolError`.
+        """
+        ws = self.make_websocket(
+            False, hybi.OPCODE_TEXT, 'foo',
+            True, hybi.OPCODE_TEXT, 'bar',
+        )
+
+        with self.assertRaises(exc.ProtocolError) as ctx:
+            ws.read_message()
+
+        self.assertEqual(
+            u'The opcode in non-fin frame is expected to be zero, got 1',
+            unicode(ctx.exception)
+        )
+
+    def test_multiple_binary_frames(self):
+        """
+        Reading a binary frame when the first has not finished must raise a
+        `exc.ProtocolError`.
+        """
+        ws = self.make_websocket(
+            False, hybi.OPCODE_BINARY, 'foo',
+            True, hybi.OPCODE_BINARY, 'bar',
+        )
+
+        with self.assertRaises(exc.ProtocolError) as ctx:
+            ws.read_message()
+
+        self.assertEqual(
+            u'The opcode in non-fin frame is expected to be zero, got 2',
+            unicode(ctx.exception)
+        )
+
+    def test_single_frame_binary(self):
+        """
+        Ensure that a single, contained binary frame is decoded correctly.
+        """
+        ws = self.make_websocket(True, hybi.OPCODE_BINARY, 'foo')
+
+        msg = ws.read_message()
+
+        self.assertIsInstance(msg, str)
+        self.assertEqual(msg, 'foo')
+
+    def test_unknown_opcode(self):
+        """
+        A frame with an unknown opcode must raise a `exc.ProtocolError`.
+        """
+        ws = self.make_websocket(True, 0xf, 'foo')
+
+        with self.assertRaises(exc.ProtocolError) as ctx:
+            ws.read_message()
+
+        self.assertEqual(
+            u'Unexpected opcode=15',
+            unicode(ctx.exception)
+        )
+
+        self.assertFalse(ws.closed)
+
+    def test_ping(self):
+        """
+        While decoding frames, ensure that a ping frame calls `handle_ping`.
+        """
+        with patch.object(hybi.WebSocketHybi, 'handle_ping') as mock:
+            ws = self.make_websocket(
+                False, hybi.OPCODE_TEXT, 'foobar',
+                True, hybi.OPCODE_PING, '',
+                True, hybi.OPCODE_CONTINUATION, ''
+            )
+
+            msg = ws.read_message()
+
+            self.assertTrue(mock.called)
+            self.assertEqual(msg, 'foobar')
+
+    def test_pong(self):
+        """
+        While decoding frames, ensure that a pong frame calls `handle_pong`.
+        """
+        with patch.object(hybi.WebSocketHybi, 'handle_pong') as mock:
+            ws = self.make_websocket(
+                False, hybi.OPCODE_TEXT, 'foobar',
+                True, hybi.OPCODE_PONG, '',
+                True, hybi.OPCODE_CONTINUATION, ''
+            )
+
+            msg = ws.read_message()
+
+            self.assertTrue(mock.called)
+            self.assertEqual(msg, 'foobar')
+
+    def test_close(self):
+        """
+        While decoding frames, ensure that a close frame calls `handle_close`.
+        """
+        with patch.object(hybi.WebSocketHybi, 'handle_close') as mock:
+            ws = self.make_websocket(
+                False, hybi.OPCODE_TEXT, 'foobar',
+                True, hybi.OPCODE_CLOSE, '',
+                True, hybi.OPCODE_CONTINUATION, ''
+            )
+
+            msg = ws.read_message()
+
+            self.assertTrue(mock.called)
+            self.assertEqual(msg, 'foobar')

@@ -9,6 +9,7 @@ from .websocket import WebSocket, encode_bytes
 __all__ = ['WebSocketHybi']
 
 
+OPCODE_CONTINUATION = 0x00
 OPCODE_TEXT = 0x01
 OPCODE_BINARY = 0x02
 OPCODE_CLOSE = 0x08
@@ -25,7 +26,7 @@ RSV1_MASK = 0x20
 RSV2_MASK = 0x10
 
 # bitwise mask that will determine the reserved bits for a frame header
-HEADER_RSV_MASK = RSV0_MASK | RSV1_MASK | RSV2_MASK
+HEADER_FLAG_MASK = RSV0_MASK | RSV1_MASK | RSV2_MASK
 
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -61,7 +62,7 @@ class Header(object):
 
     def mask_payload(self, payload):
         payload = bytearray(payload)
-        mask = self.mask
+        mask = bytearray(self.mask)
 
         for i in xrange(self.length):
             payload[i] ^= mask[i % 4]
@@ -84,97 +85,109 @@ class WebSocketHybi(WebSocket):
 
             raise
 
-    def _read_frame(self):
+    def handle_close(self, header, payload):
+        if not payload:
+            raise ConnectionClosed(1000, None)
+
+        if len(payload) < 2:
+            raise exc.ProtocolError('Invalid close frame: %r %r %r' % (
+                header.fin, header.opcode, payload))
+
+        code = struct.unpack('!H', str(payload[:2]))[0]
+        payload = payload[2:]
+
+        if payload:
+            payload = self._decode_bytes(payload)
+
+        raise ConnectionClosed(code, payload)
+
+    def handle_ping(self, header, payload):
+        self.send_frame(payload, OPCODE_PONG)
+
+    def handle_pong(self, header, payload):
+        pass
+
+    def read_frame(self):
         """
-        Return the next frame from the socket.
+        Block until a full frame has been read from the socket.
+
+        This is an internal method as calling this will not cleanup correctly
+        if an exception is called. Use `receive` instead.
+
+        :return: The header and payload as a tuple.
         """
-        fin, opcode, has_mask, length = decode_header(self._fobj)
+        header = decode_header(self._fobj)
 
-        mask = self._read(4)
+        if not header.length:
+            return header, ''
 
-        if len(mask) != 4:
-            raise exc.WebSocketError('Incomplete read while reading '
-                                     'mask: %r' % (mask,))
+        payload = self._read(header.length)
 
-        mask = struct.unpack('!BBBB', mask)
+        if len(payload) != header.length:
+            raise exc.WebSocketError('Unexpected EOF reading frame payload')
 
-        if not length:
-            return fin, opcode, ''
+        if header.mask:
+            payload = header.unmask_payload(payload)
 
-        payload = bytearray(self._read(length))
+        return header, payload
 
-        if len(payload) != length:
-            args = (length, len(payload))
-
-            raise exc.WebSocketError('Incomplete read: expected message '
-                                     'of %s bytes, got %s bytes' % args)
-
-        for i in xrange(length):
-            payload[i] = payload[i] ^ mask[i % 4]
-
-        return fin, opcode, str(payload)
-
-    def _read_message(self):
+    def read_message(self):
         """
         Return the next text or binary message from the socket.
+
+        This is an internal method as calling this will not cleanup correctly
+        if an exception is called. Use `receive` instead.
         """
         opcode = None
         message = ''
 
         while True:
-            fin, f_opcode, payload = self._read_frame()
+            header, payload = self.read_frame()
+            f_opcode = header.opcode
 
             if f_opcode in (OPCODE_TEXT, OPCODE_BINARY):
+                # a new frame
                 if opcode:
                     raise exc.ProtocolError('The opcode in non-fin frame is '
                                             'expected to be zero, got %r' % (
-                                            f_opcode,))
+                                                f_opcode,))
 
                 opcode = f_opcode
-            elif not f_opcode:
+            elif f_opcode == OPCODE_CONTINUATION:
                 if not opcode:
                     raise exc.ProtocolError('Unexpected frame with opcode=0')
-            elif f_opcode == OPCODE_CLOSE:
-                if not payload:
-                    raise ConnectionClosed(1000, None)
-
-                if len(payload) < 2:
-                    raise exc.ProtocolError('Invalid close frame: %r %r %r' % (
-                        fin, f_opcode, payload))
-
-                code = struct.unpack('!H', str(payload[:2]))[0]
-                payload = payload[2:]
-
-                if payload:
-                    payload = self._decode_bytes(payload)
-
-                raise ConnectionClosed(code, payload)
 
             elif f_opcode == OPCODE_PING:
-                self.send_frame(payload, OPCODE_PONG)
+                self.handle_ping(header, payload)
 
                 continue
             elif f_opcode == OPCODE_PONG:
+                self.handle_pong(header, payload)
+
                 continue
+            elif f_opcode == OPCODE_CLOSE:
+                self.handle_close(header, payload)
+
             else:
                 raise exc.ProtocolError("Unexpected opcode=%r" % (f_opcode,))
 
             message += payload
 
-            if fin:
+            if header.fin:
                 break
 
         if opcode == OPCODE_TEXT:
-            return message, False
-        elif opcode == OPCODE_BINARY:
-            return message, True
+            return self._decode_bytes(message)
 
-        raise RuntimeError('internal serror in gevent-websocket: opcode=%r' % (
+        elif opcode == OPCODE_BINARY:
+            return message
+
+        raise RuntimeError('internal error in gevent-websocket: opcode=%r' % (
             opcode,))
 
     def receive(self):
         try:
-            result = self._read_message()
+            return self.read_message()
         except exc.ProtocolError:
             self.close(1002)
 
@@ -188,16 +201,6 @@ class WebSocketHybi(WebSocket):
 
             raise
 
-        if not result:
-            return
-
-        message, is_binary = result
-
-        if is_binary:
-            return message
-
-        return self._decode_bytes(message)
-
     def send_frame(self, message, opcode):
         """
         Send a frame over the websocket with message as its payload
@@ -208,7 +211,7 @@ class WebSocketHybi(WebSocket):
         try:
             message = encode_bytes(message)
 
-            self._write(encode_header(message, opcode) + message)
+            self._write(encode_header(True, opcode, '', message, 0) + message)
         except Exception:
             self.close(None)
 
