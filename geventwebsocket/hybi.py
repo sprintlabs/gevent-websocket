@@ -73,6 +73,10 @@ class Header(object):
     # it's the same operation
     unmask_payload = mask_payload
 
+    def __repr__(self):
+        return '<Header fin=%r opcode=%r length=%r flags=%r at 0x%x>' % (
+            self.fin, self.opcode, self.length, self.flags, id(self),)
+
 
 class WebSocketHybi(WebSocket):
     __slots__ = ()
