@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import struct
+from socket import error
 
 from . import exceptions as exc
 from .websocket import WebSocket, encode_bytes
@@ -221,8 +222,13 @@ class WebSocketHybi(WebSocket):
 
         try:
             message = encode_bytes(message)
+            header = encode_header(True, opcode, '', len(message), 0)
 
-            self._write(encode_header(True, opcode, '', message, 0) + message)
+            self._write(header + message)
+        except error:
+            self.close(None)
+
+            raise exc.WebSocketError('Socket is dead')
         except Exception:
             self.close(None)
 

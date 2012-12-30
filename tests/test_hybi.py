@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import unittest
 from mock import patch
 
@@ -917,6 +919,20 @@ class CloseTestCase(BaseStreamTestCase):
 
             mock.assert_called_once_with('\x03\xe8', opcode=8)
 
+    @patch.object(hybi.WebSocketHybi, 'send_frame')
+    def test_socket_error_when_sending_frame(self, send_frame):
+        """
+        When calling `close`, the socket may be dead and `send_frame` will raise
+        a `exc.WebSocketError`. Ensure that this exception is not propagated.
+        """
+        send_frame.side_effect = exc.WebSocketError
+
+        ws = self.make_websocket()
+        message = ws.close()
+
+        self.assertIsNone(message)
+        self.assertTrue(ws.closed)
+
 
 class ReceiveTestCase(BaseStreamTestCase):
     """
@@ -999,3 +1015,101 @@ class ReceiveTestCase(BaseStreamTestCase):
 
         self.assertRaises(RuntimeError, ws.receive)
         self.assertTrue(ws.closed)
+
+
+class SendTestCase(BaseStreamTestCase):
+    """
+    Tests for `hybi.WebSocketHybi.send`.
+    """
+
+    def test_text(self):
+        """
+        Ensure that sending unicode works correctly
+        """
+        socket = FakeSocket()
+        ws = self.make_websocket(socket)
+
+        text = u'ƒøø'
+        ws.send(text, binary=False)
+
+        self.assertEqual(
+            '\x81\x06' + text.encode('utf-8'),
+            socket.data,
+        )
+
+    def test_default(self):
+        """
+        Ensure that the default for sending data is utf-8 encoded.
+        """
+        socket = FakeSocket()
+        ws = self.make_websocket(socket)
+
+        text = u'ƒøø'
+        # note the lack of a binary=? kwarg
+        ws.send(text)
+
+        self.assertEqual(
+            '\x81\x06' + text.encode('utf-8'),
+            socket.data,
+        )
+
+    def test_binary(self):
+        """
+        Ensure that sending binary works correctly
+        """
+        socket = FakeSocket()
+        ws = self.make_websocket(socket)
+
+        blob = '\x00' * 10
+        ws.send(blob, binary=True)
+
+        self.assertEqual(
+            '\x82\x0a' + blob,
+            socket.data,
+        )
+
+    @patch.object(FakeSocket, 'sendall')
+    def test_broken_socket(self, sendall):
+        """
+        Any attempt to write to this socket will result in an error
+        """
+        from socket import error
+
+        sendall.side_effect = error
+
+        ws = self.make_websocket()
+        self.assertFalse(ws.closed)
+        self.assertRaises(exc.WebSocketError, ws.send, 'foobar')
+        self.assertTrue(ws.closed)
+
+    @patch.object(FakeSocket, 'sendall')
+    def test_random_exception(self, sendall):
+        """
+        Any random exception when attempting to send a payload must result in a
+        closed websocket.
+        """
+        sendall.side_effect = RuntimeError
+
+        ws = self.make_websocket()
+        self.assertFalse(ws.closed)
+        self.assertRaises(RuntimeError, ws.send, 'foobar')
+        self.assertTrue(ws.closed)
+
+    def test_send_closed(self):
+        """
+        Attempting to send a payload when the websocket is already closed must
+        result in an `exc.WebSocketError`
+        """
+        ws = self.make_websocket()
+
+        ws.close()
+        self.assertTrue(ws.closed)
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            ws.send('foobar')
+
+        self.assertTrue(ws.closed)
+        self.assertEqual(
+            u'The connection was closed',
+            unicode(ctx.exception)
+        )

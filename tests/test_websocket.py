@@ -186,8 +186,8 @@ class FakeSocket(object):
     def makefile(self, mode, buffersize):
         return FakeFile(self, mode, buffersize)
 
-    def sendall(self):
-        pass
+    def sendall(self, data):
+        self.data += data
 
     def tell(self):
         return self._idx
