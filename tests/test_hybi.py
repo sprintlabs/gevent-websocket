@@ -794,3 +794,49 @@ class MessageReadingTestCase(BaseStreamTestCase):
 
             self.assertTrue(mock.called)
             self.assertEqual(msg, 'foobar')
+
+
+class CloseFrameTestCase(BaseStreamTestCase):
+    """
+    Tests for `hybi.WebSocketHybi.handle_close`
+    """
+
+    def test_no_payload(self):
+        """
+        When there is no payload, ensure that `hybi.ConnectionClosed` is raised.
+        """
+        ws = self.make_websocket()
+
+        with self.assertRaises(hybi.ConnectionClosed) as ctx:
+            ws.handle_close(None, '')
+
+        self.assertEqual(ctx.exception.code, 1000)
+        self.assertEqual(ctx.exception.message, None)
+
+    def test_min_payload(self):
+        """
+        When a close frame with a payload < 2 is received, ensure that
+        `exc.ProtocolError` is raised.
+        """
+        ws = self.make_websocket()
+
+        with self.assertRaises(exc.ProtocolError) as ctx:
+            ws.handle_close(None, ' ')
+
+        self.assertEqual(
+            u"Invalid close frame: None ' '",
+            unicode(ctx.exception)
+        )
+
+    def test_decode_payload(self):
+        """
+        Ensure that `hybi.ConnectionClosed` is raised with the correct
+        code/message
+        """
+        ws = self.make_websocket()
+
+        with self.assertRaises(hybi.ConnectionClosed) as ctx:
+            ws.handle_close(None, '\x00\x09foobar')
+
+        self.assertEqual(ctx.exception.code, 9)
+        self.assertEqual(ctx.exception.message, 'foobar')

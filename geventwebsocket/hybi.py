@@ -90,8 +90,8 @@ class WebSocketHybi(WebSocket):
             raise ConnectionClosed(1000, None)
 
         if len(payload) < 2:
-            raise exc.ProtocolError('Invalid close frame: %r %r %r' % (
-                header.fin, header.opcode, payload))
+            raise exc.ProtocolError('Invalid close frame: %r %r' % (
+                header, payload))
 
         code = struct.unpack('!H', str(payload[:2]))[0]
         payload = payload[2:]
