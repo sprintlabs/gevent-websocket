@@ -840,3 +840,162 @@ class CloseFrameTestCase(BaseStreamTestCase):
 
         self.assertEqual(ctx.exception.code, 9)
         self.assertEqual(ctx.exception.message, 'foobar')
+
+
+class CloseTestCase(BaseStreamTestCase):
+    """
+    Tests for closing a hybi websocket.
+    """
+
+    def assertClosed(self, ws):
+        self.assertTrue(ws.closed)
+        self.assertIsNone(ws.environ)
+        self.assertIsNone(ws._socket)
+        self.assertIsNone(ws._fobj)
+        self.assertIsNone(ws._read)
+        self.assertIsNone(ws._write)
+
+    def test_state(self):
+        """
+        Closing an active websocket should set the correct internal state.
+        """
+        ws = self.make_websocket()
+
+        self.assertFalse(ws.closed)
+
+        ws.close()
+
+        self.assertClosed(ws)
+
+    def test_already_closed(self):
+        """
+        Ensure that closing an already closed socket does not fail.
+        """
+        ws = self.make_websocket()
+
+        self.assertFalse(ws.closed)
+
+        ws.close()
+        ws.close()
+
+        self.assertClosed(ws)
+
+    def test_send_frame(self):
+        """
+        Ensure that a close frame is sent with the default code of 1000 when
+        closing the websocket.
+        """
+        with patch.object(hybi.WebSocketHybi, 'send_frame') as mock:
+            ws = self.make_websocket()
+
+            ws.close()
+
+            mock.assert_called_with('\x03\xe8', opcode=8)
+
+    def test_send_code(self):
+        """
+        Ensure that a close frame with the appropriate code is sent when
+        closing the websocket.
+        """
+        with patch.object(hybi.WebSocketHybi, 'send_frame') as mock:
+            ws = self.make_websocket()
+
+            ws.close(1007, 'foobar')
+
+            mock.assert_called_with('\x03\xeffoobar', opcode=8)
+
+    def test_only_one_send_frame(self):
+        """
+        Ensure that only the first close frame is sent when closing the
+        websocket.
+        """
+        with patch.object(hybi.WebSocketHybi, 'send_frame') as mock:
+            ws = self.make_websocket()
+
+            ws.close()
+            ws.close(1007, 'foobar')
+
+            mock.assert_called_once_with('\x03\xe8', opcode=8)
+
+
+class ReceiveTestCase(BaseStreamTestCase):
+    """
+    Tests for the public method `HybiWebSocket.receive`
+    """
+
+    def test_broken_socket(self):
+        """
+        Ensure that when the socket is broken that the websocket is closed.
+        """
+        from socket import error
+
+        class BrokenSocket(FakeSocket):
+            def read(self, size):
+                # any reads from the socket will result in an error.
+                raise error
+
+        with patch.object(hybi.WebSocketHybi, 'close') as mock:
+            ws = self.make_websocket(BrokenSocket())
+
+            self.assertRaises(error, ws._socket.read, 1)
+            self.assertRaises(exc.WebSocketError, ws.receive)
+
+            mock.assert_called_with(None)
+
+    @patch.object(hybi.WebSocketHybi, 'read_message')
+    def test_read_message(self, read_message):
+        """
+        Ensure that a message read from the stream is returned correctly.
+        """
+        read_message.return_value = 'foobar'
+
+        ws = self.make_websocket()
+        message = ws.receive()
+
+        self.assertEqual(message, read_message.return_value)
+
+    @patch.object(hybi.WebSocketHybi, 'send_frame')
+    @patch.object(hybi.WebSocketHybi, 'read_message')
+    def test_protocol_error(self, read_message, send_frame):
+        """
+        When an `exc.ProtocolError` is raised by `read_message`, the websocket
+        must be closed and the correct close frame sent.
+        """
+        read_message.side_effect = exc.ProtocolError
+
+        ws = self.make_websocket()
+
+        self.assertRaises(exc.ProtocolError, ws.receive)
+
+        self.assertTrue(ws.closed)
+
+        send_frame.assert_called_with('\x03\xea', opcode=8)
+
+    @patch.object(hybi.WebSocketHybi, 'send_frame')
+    @patch.object(hybi.WebSocketHybi, 'read_message')
+    def test_close_connection(self, read_message, send_frame):
+        """
+        When the connection is closed normally, a close frame must be sent and
+        a return of `None`.
+        """
+        read_message.side_effect = hybi.ConnectionClosed(1002, '')
+
+        ws = self.make_websocket()
+
+        self.assertIsNone(ws.receive())
+        self.assertTrue(ws.closed)
+
+        send_frame.assert_called_with('\x03\xea', opcode=8)
+
+    @patch.object(hybi.WebSocketHybi, 'read_message')
+    def test_random_error(self, read_message):
+        """
+        When _any_ other type of exception is raised, the websocket must be
+        closed and send a close frame.
+        """
+        read_message.side_effect = RuntimeError
+
+        ws = self.make_websocket()
+
+        self.assertRaises(RuntimeError, ws.receive)
+        self.assertTrue(ws.closed)

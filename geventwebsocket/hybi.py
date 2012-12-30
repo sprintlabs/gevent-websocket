@@ -74,6 +74,8 @@ class Header(object):
 
 
 class WebSocketHybi(WebSocket):
+    __slots__ = ()
+
     def _decode_bytes(self, bytes):
         if not bytes:
             return bytes
@@ -186,10 +188,19 @@ class WebSocketHybi(WebSocket):
             opcode,))
 
     def receive(self):
+        """
+        Read and return a message from the stream. If `None` is returned, then
+        the socket is considered closed/errored.
+        """
         try:
             return self.read_message()
         except exc.ProtocolError:
             self.close(1002)
+
+            raise
+        except exc.WebSocketError:
+            # an attempt to read from the socket caused an error
+            self.close(None)
 
             raise
         except ConnectionClosed, e:
