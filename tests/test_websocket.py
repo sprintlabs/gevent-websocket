@@ -161,8 +161,13 @@ class FakeFile(object):
 
         self.closed = False
 
-    def read(self):
-        pass
+    def read(self, size):
+        pos = self.socket.tell()
+
+        ret = self.socket.data[pos:pos + size]
+        self.socket._idx += len(ret)
+
+        return ret
 
     def close(self):
         self.closed = True
@@ -174,11 +179,18 @@ class FakeSocket(object):
     the underlying intricacies of the real socket layer.
     """
 
+    def __init__(self, data=''):
+        self.data = data
+        self._idx = 0
+
     def makefile(self, mode, buffersize):
         return FakeFile(self, mode, buffersize)
 
     def sendall(self):
         pass
+
+    def tell(self):
+        return self._idx
 
 
 class WebSocketTestCase(unittest.TestCase):
