@@ -296,14 +296,6 @@ def decode_header(stream):
     header.length = second_byte & LENGTH_MASK
     has_mask = second_byte & MASK_MASK == MASK_MASK
 
-    if has_mask:
-        mask = read(4)
-
-        if len(mask) != 4:
-            raise exc.WebSocketError('Unexpected EOF while decoding header')
-
-        header.mask = mask
-
     if header.opcode > 0x07:
         if not header.fin:
             raise exc.ProtocolError(
@@ -313,9 +305,6 @@ def decode_header(stream):
         if header.length > 125:
             raise exc.FrameTooLargeException(
                 'Control frame cannot be larger than 125 bytes: %r' % (data,))
-
-    if header.length < 125:
-        return header
 
     if header.length == 126:
         # 16 bit length
@@ -333,6 +322,14 @@ def decode_header(stream):
             raise exc.WebSocketError('Unexpected EOF while decoding header')
 
         header.length = struct.unpack('!Q', data)[0]
+
+    if has_mask:
+        mask = read(4)
+
+        if len(mask) != 4:
+            raise exc.WebSocketError('Unexpected EOF while decoding header')
+
+        header.mask = mask
 
     return header
 
