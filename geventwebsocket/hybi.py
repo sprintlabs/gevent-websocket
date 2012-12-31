@@ -83,11 +83,11 @@ class WebSocketHybi(WebSocket):
 
     def _decode_bytes(self, bytes):
         if not bytes:
-            return bytes
+            return u''
 
         try:
             return bytes.decode('utf-8')
-        except ValueError:
+        except UnicodeDecodeError:
             self.close(1007)
 
             raise
@@ -105,6 +105,9 @@ class WebSocketHybi(WebSocket):
 
         if payload:
             payload = self._decode_bytes(payload)
+
+        if not is_valid_close_code(code):
+            raise exc.ProtocolError('Invalid close code %r' % (code,))
 
         raise ConnectionClosed(code, payload)
 
@@ -124,6 +127,9 @@ class WebSocketHybi(WebSocket):
         :return: The header and payload as a tuple.
         """
         header = decode_header(self._fobj)
+
+        if header.flags:
+            raise exc.ProtocolError
 
         if not header.length:
             return header, ''
@@ -186,11 +192,7 @@ class WebSocketHybi(WebSocket):
         if opcode == OPCODE_TEXT:
             return self._decode_bytes(message)
 
-        elif opcode == OPCODE_BINARY:
-            return message
-
-        raise RuntimeError('internal error in gevent-websocket: opcode=%r' % (
-            opcode,))
+        return message
 
     def receive(self):
         """
@@ -238,10 +240,16 @@ class WebSocketHybi(WebSocket):
 
             raise
 
-    def send(self, message, binary=False):
+    def send(self, message, binary=None):
         """
         Send a frame over the websocket with message as its payload
         """
+        if binary is None:
+            binary = False
+
+            if isinstance(message, str):
+                binary = True
+
         opcode = OPCODE_BINARY if binary else OPCODE_TEXT
 
         return self.send_frame(message, opcode)
@@ -273,6 +281,25 @@ class WebSocketHybi(WebSocket):
         finally:
             super(WebSocketHybi, self).close()
 
+
+def is_valid_close_code(code):
+    if code < 1000:
+        return False
+
+    if 1004 <= code <= 1006:
+        return False
+
+    if 1012 <= code <= 1016:
+        return False
+
+    if code == 1100:
+        # not sure about this one but the autobahn fuzzer requires it.
+        return False
+
+    if 2000 <= code <= 2999:
+        return False
+
+    return True
 
 def decode_header(stream):
     """

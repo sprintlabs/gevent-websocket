@@ -838,9 +838,9 @@ class CloseFrameTestCase(BaseStreamTestCase):
         ws = self.make_websocket()
 
         with self.assertRaises(hybi.ConnectionClosed) as ctx:
-            ws.handle_close(None, '\x00\x09foobar')
+            ws.handle_close(None, '\x03\xe8foobar')
 
-        self.assertEqual(ctx.exception.code, 9)
+        self.assertEqual(ctx.exception.code, 1000)
         self.assertEqual(ctx.exception.message, 'foobar')
 
 
