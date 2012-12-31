@@ -11,6 +11,11 @@ setup(
     url="https://bitbucket.org/Jeffrey/gevent-websocket",
     download_url="https://bitbucket.org/Jeffrey/gevent-websocket",
     install_requires=("gevent", "greenlet"),
+    tests_require=(
+        'nose',
+        'autobahntestsuite',
+        'mock'
+    ),
     packages=find_packages(exclude=["examples","tests"]),
     classifiers=[
         "Development Status :: 4 - Beta",
