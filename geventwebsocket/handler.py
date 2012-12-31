@@ -52,6 +52,7 @@ class WebSocketHandler(WSGIHandler):
         self.response_use_chunked = False
         # once the request is over, the connection must be closed
         self.close_connection = True
+        self.provided_date = True
 
         self._write_with_headers(None)
 
