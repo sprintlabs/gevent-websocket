@@ -11,7 +11,7 @@ __all__ = ['WebSocketHixie']
 
 class SecKeyError(Exception):
     """
-    Raised if supplied Sec-WebSocket-Key* is malformed.
+    Raised if supplied Sec-WebSocket-Key* http header is malformed.
 
     http://tools.ietf.org/html/draft-hixie-thewebsocketprotocol-76#section-1.3
     """
@@ -89,7 +89,7 @@ def _make_websocket(handler):
     if ws.origin:
         headers.append(("Sec-WebSocket-Origin", ws.origin))
 
-    handler.start_response("101 Web Socket Protocol Handshake", headers)
+    handler.start_response("101 WebSocket Protocol Handshake", headers)
 
 
 def upgrade_connection(handler, environ):
