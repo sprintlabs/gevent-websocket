@@ -284,6 +284,9 @@ class WebSocketHybi(WebSocket):
 
 
 def is_valid_close_code(code):
+    """
+    :returns: Whether the returned close code is a valid hybi return code.
+    """
     if code < 1000:
         return False
 

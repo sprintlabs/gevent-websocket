@@ -1113,3 +1113,30 @@ class SendTestCase(BaseStreamTestCase):
             u'The connection was closed',
             unicode(ctx.exception)
         )
+
+
+class CloseCodeTestCase(unittest.TestCase):
+    """
+    Tests for `hybi.is_valid_close_code`
+    """
+
+    def test_invalid_codes(self):
+        """
+        A number of codes are reserved/considered invalid by the spec.
+        """
+        invalid_codes = [999, 1100] + \
+            range(1004, 1006) + \
+            range(1012, 1016) + \
+            range(2000, 2999)
+
+        for code in invalid_codes:
+            self.assertFalse(hybi.is_valid_close_code(code))
+
+    def test_valid_codes(self):
+        """
+        All other codes are considered valid (or are undefined by the spec).
+        """
+        valid_codes = range(1000, 1004) + range(1007, 1012)
+
+        for code in valid_codes:
+            self.assertTrue(hybi.is_valid_close_code(code))
