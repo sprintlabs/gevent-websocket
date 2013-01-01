@@ -70,12 +70,11 @@ class Header(object):
 class WebSocketHybi(WebSocket):
     __slots__ = ()
 
-    def _decode_bytes(self, bytes):
-        if not bytes:
+    def _decode_bytes(self, bytestring):
             return u''
 
         try:
-            return bytes.decode('utf-8')
+            return bytestring.decode('utf-8')
         except UnicodeDecodeError:
             self.close(1007)
 
