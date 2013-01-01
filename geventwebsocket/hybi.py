@@ -7,7 +7,7 @@ from . import exceptions as exc
 from .websocket import WebSocket, encode_bytes
 
 
-__all__ = ['WebSocketHybi']
+__all__ = ['upgrade_connection']
 
 
 OPCODE_CONTINUATION = 0x00
