@@ -4,10 +4,10 @@ import hashlib
 from socket import error
 
 from . import exceptions as exc
-from .websocket import WebSocket, encode_bytes
+from .websocket import WebSocket
 
 
-__all__ = ['WebSocketHixie']
+__all__ = ['upgrade_connection']
 
 
 class SecKeyError(Exception):
@@ -18,7 +18,9 @@ class SecKeyError(Exception):
     """
 
 
-class WebSocketHixie(WebSocket):
+class BaseWebSocket(WebSocket):
+    __slots__ = ()
+
     def send(self, message):
         """
         Send a frame over the websocket with message as its payload
@@ -83,9 +85,25 @@ class WebSocketHixie(WebSocket):
             ord(frame_type),))
 
 
+class WebSocketHixie76(BaseWebSocket):
+    __slots__ = ()
+
+
+class WebSocketHixie75(BaseWebSocket):
+    __slots__ = ()
+
+
+
 def _make_websocket(handler, environ):
     # all looks good, lets rock
-    ws = environ['wsgi.websocket'] = WebSocketHixie(handler.socket, environ)
+    if environ['wsgi.websocket_version'] == 'hixie-75':
+        ws = WebSocketHixie75(handler.socket, environ)
+    elif environ['wsgi.websocket_version'] == 'hixie-76':
+        ws = WebSocketHixie76(handler.socket, environ)
+    else:
+        raise exc.WebSocketError('Unknown websocket version')
+
+    environ['wsgi.websocket'] = ws
 
     headers = [
         ("Upgrade", "WebSocket"),

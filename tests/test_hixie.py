@@ -42,7 +42,7 @@ class UpgradeConnectionHixie75TestCase(unittest.TestCase):
 
         ws = environ['wsgi.websocket']
 
-        self.assertIsInstance(ws, hixie.WebSocketHixie)
+        self.assertIsInstance(ws, hixie.WebSocketHixie75)
         self.assertFalse(ws.closed)
         self.assertEqual(handler.status, '101 WebSocket Protocol Handshake')
         self.assertEqual(handler.headers, [
@@ -150,7 +150,7 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
 
         ws = environ['wsgi.websocket']
 
-        self.assertIsInstance(ws, hixie.WebSocketHixie)
+        self.assertIsInstance(ws, hixie.WebSocketHixie75)
         self.assertFalse(ws.closed)
         self.assertEqual(handler.status, '101 WebSocket Protocol Handshake')
 
@@ -287,7 +287,7 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
 
         ws = environ['wsgi.websocket']
 
-        self.assertIsInstance(ws, hixie.WebSocketHixie)
+        self.assertIsInstance(ws, hixie.WebSocketHixie76)
         self.assertFalse(ws.closed)
         self.assertEqual(handler.headers, [
             ('Upgrade', 'WebSocket'),
@@ -354,7 +354,7 @@ class BaseStreamTestCase(unittest.TestCase):
         socket = socket or FakeSocket()
         environ = environ or {}
 
-        return hixie.WebSocketHixie(socket, environ)
+        return hixie.BaseWebSocket(socket, environ)
 
 
 class SendTestCase(BaseStreamTestCase):
