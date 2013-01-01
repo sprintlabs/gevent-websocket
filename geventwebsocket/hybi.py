@@ -252,7 +252,7 @@ class WebSocketHybi(WebSocket):
 
         opcode = OPCODE_BINARY if binary else OPCODE_TEXT
 
-        return self.send_frame(message, opcode)
+        self.send_frame(message, opcode)
 
     def close(self, code=1000, message=''):
         """
