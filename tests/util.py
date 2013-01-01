@@ -29,12 +29,7 @@ class FakeFile(object):
         self.closed = False
 
     def read(self, size):
-        pos = self.socket.tell()
-
-        ret = self.socket.data[pos:pos + size]
-        self.socket._idx += len(ret)
-
-        return ret
+        return self.socket.recv(size)
 
     def close(self):
         self.closed = True
@@ -59,4 +54,11 @@ class FakeSocket(object):
     def tell(self):
         return self._idx
 
+    def recv(self, size):
+        pos = self.tell()
+
+        ret = self.data[pos:pos + size]
+        self._idx += len(ret)
+
+        return ret
 

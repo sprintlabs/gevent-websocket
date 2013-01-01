@@ -2,7 +2,7 @@ import re
 import struct
 import hashlib
 
-from .exceptions import WebSocketError
+from . import exceptions as exc
 from .websocket import WebSocket, encode_bytes
 
 
@@ -32,8 +32,8 @@ class WebSocketHixie(WebSocket):
             byte = self._read(1)
 
             if not byte:
-                raise WebSocketError('Connection closed unexpectedly while '
-                                     'reading message: %r' % (buf,))
+                raise exc.WebSocketError('Connection closed unexpectedly while '
+                                         'reading message: %r' % (buf,))
 
             if byte == '\xff':
                 return buf
@@ -62,18 +62,15 @@ class WebSocketHixie(WebSocket):
 
                 raise
 
-            # XXX - Why the replace?
-            return buf.decode("utf-8", "replace")
+            return buf.decode("utf-8")
 
         self.close()
 
-        raise WebSocketError("Received an invalid frame_type=%r" % (
+        raise exc.WebSocketError("Received an invalid frame_type=%r" % (
             ord(frame_type),))
 
 
-def _make_websocket(handler):
-    environ = handler.environ
-
+def _make_websocket(handler, environ):
     # all looks good, lets rock
     ws = environ['wsgi.websocket'] = WebSocketHixie(handler.socket, environ)
 
@@ -99,7 +96,7 @@ def upgrade_connection(handler, environ):
     if key1 is None:
         environ['wsgi.websocket_version'] = 'hixie-75'
 
-        return _make_websocket(handler)
+        return _make_websocket(handler, environ)
 
     if not key1:
         msg = "400: Sec-WebSocket-Key1 header is empty"
@@ -110,7 +107,7 @@ def upgrade_connection(handler, environ):
         return [msg]
 
     if not key2:
-        msg = "400: Sec-WebSocket-Key1 header is missing/empty"
+        msg = "400: Sec-WebSocket-Key2 header is missing/empty"
 
         handler.log_error(msg)
         handler.start_response('400 Bad Request', [])
@@ -131,17 +128,25 @@ def upgrade_connection(handler, environ):
     # This request should have 8 bytes of data in the body
     key3 = handler.socket.recv(8)
 
+    if len(key3) != 8:
+        raise exc.WebSocketError('Unexpected EOF while reading key3')
+
     challenge_key = struct.pack("!II", part1, part2) + key3
     challenge = hashlib.md5(challenge_key).digest()
+
     handler.socket.sendall(challenge)
 
     environ['wsgi.websocket_version'] = 'hixie-76'
 
-    return _make_websocket(handler)
+    return _make_websocket(handler, environ)
 
 
 def get_key_value(key):
-    key_number = int(re.sub("\\D", "", key))
+    try:
+        key_number = int(re.sub("\\D", "", key))
+    except (ValueError, TypeError):
+        raise SecKeyError('Invalid value for key')
+
     spaces = re.subn(" ", "", key)[1]
 
     if key_number % spaces != 0:
