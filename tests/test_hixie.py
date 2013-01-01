@@ -377,6 +377,17 @@ class SendTestCase(BaseStreamTestCase):
             socket.data,
             )
 
+    def test_send_empty(self):
+        """
+        An empty frame is considered a close frame. Ensure that sending an
+        empty frame does not close the websocket.
+        """
+        ws = self.make_websocket()
+
+        self.assertFalse(ws.closed)
+        ws.send('')
+        self.assertFalse(ws.closed)
+
     def test_invalid_utf8(self):
         """
         Attempting to send binary data should close the websocket and raise the

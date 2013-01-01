@@ -21,6 +21,20 @@ class SecKeyError(Exception):
 class BaseWebSocket(WebSocket):
     __slots__ = ()
 
+    def send_frame(self, data):
+        """
+        Send a frame over the websocket with data as its payload.
+
+        This is an internal method as calling this will not cleanup correctly
+        if an exception is called. Use `send` instead.
+
+        :param data: A utf-8 encoded bytestring.
+        """
+        try:
+            self._write('\x00' + data + '\xff')
+        except error:
+            raise exc.WebSocketError('Socket is dead')
+
     def send(self, message):
         """
         Send a frame over the websocket with message as its payload
@@ -28,12 +42,12 @@ class BaseWebSocket(WebSocket):
         if self.closed:
             raise exc.WebSocketError('The connection was closed')
 
-        try:
-            self._write('\x00' + message.encode('utf-8') + '\xff')
-        except error:
-            self.close()
+        if not message:
+            # sending an empty frame is considered a close frame ..
+            return
 
-            raise exc.WebSocketError('Socket is dead')
+        try:
+            self.send_frame(message.encode('utf-8'))
         except:
             self.close()
 
