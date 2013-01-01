@@ -55,7 +55,7 @@ class UpgradeConnectionHixie75TestCase(unittest.TestCase):
         Ensure that the `Sec-WebSocket-Protocol` header is echoed back.
         """
         environ = {
-            'HTTP_SEC_WEBSOCKET_PROTOCOL': 'foobar'
+            'HTTP_WEBSOCKET_PROTOCOL': 'foobar'
         }
 
         handler = self.make_handler(environ=environ)

@@ -92,6 +92,13 @@ class WebSocketHixie76(BaseWebSocket):
 class WebSocketHixie75(BaseWebSocket):
     __slots__ = ()
 
+    @property
+    def protocol(self):
+        if not self.environ:
+            return
+
+        return self.environ.get('HTTP_WEBSOCKET_PROTOCOL')
+
 
 
 def _make_websocket(handler, environ):
