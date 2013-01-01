@@ -71,6 +71,13 @@ class WebSocketHybi(WebSocket):
     __slots__ = ()
 
     def _decode_bytes(self, bytestring):
+        """
+        Internal method used to convert the utf-8 encoded bytestring into
+        unicode.
+
+        If the conversion fails, the socket will be closed.
+        """
+        if not bytestring:
             return u''
 
         try:
