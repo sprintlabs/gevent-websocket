@@ -166,6 +166,7 @@ class WebSocketHybi(WebSocket):
                                                 f_opcode,))
 
                 opcode = f_opcode
+
             elif f_opcode == OPCODE_CONTINUATION:
                 if not opcode:
                     raise exc.ProtocolError('Unexpected frame with opcode=0')
