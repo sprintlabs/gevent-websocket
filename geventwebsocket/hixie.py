@@ -77,8 +77,15 @@ def _make_websocket(handler, environ):
     headers = [
         ("Upgrade", "WebSocket"),
         ("Connection", "Upgrade"),
-        ("WebSocket-Location", handler.ws_url),
     ]
+
+    if handler.ws_url:
+        header = 'Sec-WebSocket-Location'
+
+        if environ['wsgi.websocket_version'] == 'hixie-75':
+            header = 'WebSocket-Location'
+
+        headers.append((header, handler.ws_url))
 
     if ws.protocol:
         headers.append(("Sec-WebSocket-Protocol", ws.protocol))
