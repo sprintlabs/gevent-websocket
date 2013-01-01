@@ -781,21 +781,21 @@ class MessageReadingTestCase(BaseStreamTestCase):
             self.assertTrue(mock.called)
             self.assertEqual(msg, 'foobar')
 
-    def test_close(self):
+    @patch.object(hybi.WebSocketHybi, 'handle_close')
+    def test_close(self, handle_close):
         """
         While decoding frames, ensure that a close frame calls `handle_close`.
         """
-        with patch.object(hybi.WebSocketHybi, 'handle_close') as mock:
-            ws = self.make_websocket(
-                False, hybi.OPCODE_TEXT, 'foobar',
-                True, hybi.OPCODE_CLOSE, '',
-                True, hybi.OPCODE_CONTINUATION, ''
-            )
+        ws = self.make_websocket(
+            False, hybi.OPCODE_TEXT, 'foo',
+            True, hybi.OPCODE_CLOSE, '',
+            True, hybi.OPCODE_CONTINUATION, 'bar'
+        )
 
-            msg = ws.read_message()
+        msg = ws.read_message()
 
-            self.assertTrue(mock.called)
-            self.assertEqual(msg, 'foobar')
+        self.assertTrue(handle_close.called)
+        self.assertIsNone(msg)
 
 
 class CloseFrameTestCase(BaseStreamTestCase):
@@ -803,17 +803,18 @@ class CloseFrameTestCase(BaseStreamTestCase):
     Tests for `hybi.WebSocketHybi.handle_close`
     """
 
-    def test_no_payload(self):
+    @patch.object(hybi.WebSocketHybi, 'send_frame')
+    def test_no_payload(self, send_frame):
         """
         When there is no payload, ensure that `hybi.ConnectionClosed` is raised.
         """
         ws = self.make_websocket()
+        self.assertFalse(ws.closed)
 
-        with self.assertRaises(hybi.ConnectionClosed) as ctx:
-            ws.handle_close(None, '')
+        ws.handle_close(None, '')
+        self.assertTrue(ws.closed)
 
-        self.assertEqual(ctx.exception.code, 1000)
-        self.assertEqual(ctx.exception.message, None)
+        send_frame.assert_called_with('\x03\xe8', opcode=8)
 
     def test_min_payload(self):
         """
@@ -830,18 +831,19 @@ class CloseFrameTestCase(BaseStreamTestCase):
             unicode(ctx.exception)
         )
 
-    def test_decode_payload(self):
+    @patch.object(hybi.WebSocketHybi, 'send_frame')
+    def test_decode_payload(self, send_frame):
         """
         Ensure that `hybi.ConnectionClosed` is raised with the correct
         code/message
         """
         ws = self.make_websocket()
+        self.assertFalse(ws.closed)
 
-        with self.assertRaises(hybi.ConnectionClosed) as ctx:
-            ws.handle_close(None, '\x03\xe8foobar')
+        ws.handle_close(None, '\x03\xe8foobar')
+        self.assertTrue(ws.closed)
 
-        self.assertEqual(ctx.exception.code, 1000)
-        self.assertEqual(ctx.exception.message, 'foobar')
+        send_frame.assert_called_with('\x03\xe8foobar', opcode=8)
 
 
 class CloseTestCase(BaseStreamTestCase):
@@ -983,22 +985,6 @@ class ReceiveTestCase(BaseStreamTestCase):
 
         self.assertRaises(exc.ProtocolError, ws.receive)
 
-        self.assertTrue(ws.closed)
-
-        send_frame.assert_called_with('\x03\xea', opcode=8)
-
-    @patch.object(hybi.WebSocketHybi, 'send_frame')
-    @patch.object(hybi.WebSocketHybi, 'read_message')
-    def test_close_connection(self, read_message, send_frame):
-        """
-        When the connection is closed normally, a close frame must be sent and
-        a return of `None`.
-        """
-        read_message.side_effect = hybi.ConnectionClosed(1002, '')
-
-        ws = self.make_websocket()
-
-        self.assertIsNone(ws.receive())
         self.assertTrue(ws.closed)
 
         send_frame.assert_called_with('\x03\xea', opcode=8)

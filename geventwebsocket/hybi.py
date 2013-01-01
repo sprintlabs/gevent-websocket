@@ -34,17 +34,6 @@ GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 SUPPORTED_VERSIONS = ('13', '8', '7')
 
 
-class ConnectionClosed(Exception):
-    """
-    A special type of exception indicating that the remote endpoint closed the
-    connection.
-    """
-
-    def __init__(self, code, message):
-        self.code = code
-        self.message = message
-
-
 class Header(object):
     __slots__ = (
         'fin',
@@ -94,7 +83,9 @@ class WebSocketHybi(WebSocket):
 
     def handle_close(self, header, payload):
         if not payload:
-            raise ConnectionClosed(1000, None)
+            self.close(1000, None)
+
+            return
 
         if len(payload) < 2:
             raise exc.ProtocolError('Invalid close frame: %r %r' % (
@@ -109,7 +100,7 @@ class WebSocketHybi(WebSocket):
         if not is_valid_close_code(code):
             raise exc.ProtocolError('Invalid close code %r' % (code,))
 
-        raise ConnectionClosed(code, payload)
+        self.close(code, payload)
 
     def handle_ping(self, header, payload):
         self.send_frame(payload, OPCODE_PONG)
@@ -182,6 +173,8 @@ class WebSocketHybi(WebSocket):
             elif f_opcode == OPCODE_CLOSE:
                 self.handle_close(header, payload)
 
+                return
+
             else:
                 raise exc.ProtocolError("Unexpected opcode=%r" % (f_opcode,))
 
@@ -211,10 +204,6 @@ class WebSocketHybi(WebSocket):
             self.close(None)
 
             raise
-        except ConnectionClosed, e:
-            self.close(e.code)
-
-            return
         except:
             self.close(None)
 
