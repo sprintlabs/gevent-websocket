@@ -10,24 +10,7 @@ except ImportError:
 
 from geventwebsocket import hybi, exceptions as exc
 
-from .test_websocket import FakeSocket
-
-
-class MockHandler(object):
-    """
-    A test compatible WSGI handler
-    """
-
-    def __init__(self, environ, request_version):
-        self.environ = environ
-        self.request_version = request_version
-
-    def log_error(self, msg):
-        self.log = msg
-
-    def start_response(self, status, headers):
-        self.status = status
-        self.headers = headers
+from .util import FakeSocket, MockHandler
 
 
 class UpgradeConnectionTestCase(unittest.TestCase):

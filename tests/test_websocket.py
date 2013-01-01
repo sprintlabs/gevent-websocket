@@ -6,6 +6,7 @@ import unittest
 
 from geventwebsocket import websocket
 
+from .util import FakeSocket, FakeFile
 
 class EncodeBytesTestCase(unittest.TestCase):
     """
@@ -157,46 +158,6 @@ class WrappedReadTestCase(unittest.TestCase):
         reader = websocket.wrapped_read(MyFile())
 
         self.assertEqual('foobar', reader())
-
-
-class FakeFile(object):
-    def __init__(self, socket, mode, buffersize):
-        self.socket = socket
-        self.mode = mode
-        self.buffersize = buffersize
-
-        self.closed = False
-
-    def read(self, size):
-        pos = self.socket.tell()
-
-        ret = self.socket.data[pos:pos + size]
-        self.socket._idx += len(ret)
-
-        return ret
-
-    def close(self):
-        self.closed = True
-
-
-class FakeSocket(object):
-    """
-    A fake socket like object that a `unittest.TestCase` can use to mock out
-    the underlying intricacies of the real socket layer.
-    """
-
-    def __init__(self, data=''):
-        self.data = data
-        self._idx = 0
-
-    def makefile(self, mode, buffersize):
-        return FakeFile(self, mode, buffersize)
-
-    def sendall(self, data):
-        self.data += data
-
-    def tell(self):
-        return self._idx
 
 
 class WebSocketTestCase(unittest.TestCase):
