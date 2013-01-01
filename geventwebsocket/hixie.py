@@ -1,6 +1,7 @@
 import re
 import struct
 import hashlib
+from socket import error
 
 from . import exceptions as exc
 from .websocket import WebSocket, encode_bytes
@@ -19,10 +20,22 @@ class SecKeyError(Exception):
 
 class WebSocketHixie(WebSocket):
     def send(self, message):
-        message = encode_bytes(message)
+        """
+        Send a frame over the websocket with message as its payload
+        """
+        if self.closed:
+            raise exc.WebSocketError('The connection was closed')
 
-        with self._writelock:
-            self._write("\x00" + message + "\xff")
+        try:
+            self._write('\x00' + message.encode('utf-8') + '\xff')
+        except error:
+            self.close()
+
+            raise exc.WebSocketError('Socket is dead')
+        except:
+            self.close()
+
+            raise
 
     def _read_message(self):
         buf = ''
@@ -43,7 +56,7 @@ class WebSocketHixie(WebSocket):
         return buf
 
     def receive(self):
-        if not self.socket:
+        if self.closed:
             return
 
         frame_type = self._read(1)

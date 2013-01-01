@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+
 import unittest
+from mock import patch
 
 from geventwebsocket import hixie, exceptions as exc
 
@@ -341,3 +344,96 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
             ('Connection', 'Upgrade'),
             ('Sec-WebSocket-Origin', 'foobar'),
         ])
+
+
+class BaseStreamTestCase(unittest.TestCase):
+    def make_socket(self, data):
+        return FakeSocket(data)
+
+    def make_websocket(self, socket=None, environ=None):
+        socket = socket or FakeSocket()
+        environ = environ or {}
+
+        return hixie.WebSocketHixie(socket, environ)
+
+
+class SendTestCase(BaseStreamTestCase):
+    """
+    Tests for `hixie.WebSocketHixie.send`.
+    """
+
+    def test_text(self):
+        """
+        Ensure that sending unicode works correctly
+        """
+        socket = FakeSocket()
+        ws = self.make_websocket(socket)
+
+        text = u'ƒøø'
+        ws.send(text)
+
+        self.assertEqual(
+            '\x00' + text.encode('utf-8') + '\xff',
+            socket.data,
+            )
+
+    def test_invalid_utf8(self):
+        """
+        Attempting to send binary data should close the websocket and raise the
+        exception.
+        """
+        socket = FakeSocket()
+        ws = self.make_websocket(socket)
+
+        blob = '\xff'
+
+        with self.assertRaises(UnicodeDecodeError) as ctx:
+            ws.send(blob)
+
+        self.assertTrue(ws.closed)
+
+    @patch.object(FakeSocket, 'sendall')
+    def test_broken_socket(self, sendall):
+        """
+        Any attempt to write to this socket will result in an error
+        """
+        from socket import error
+
+        sendall.side_effect = error
+
+        ws = self.make_websocket()
+        self.assertFalse(ws.closed)
+        self.assertRaises(exc.WebSocketError, ws.send, 'foobar')
+        self.assertTrue(ws.closed)
+
+    @patch.object(FakeSocket, 'sendall')
+    def test_random_exception(self, sendall):
+        """
+        Any random exception when attempting to send a payload must result in a
+        closed websocket.
+        """
+        sendall.side_effect = RuntimeError
+
+        ws = self.make_websocket()
+        self.assertFalse(ws.closed)
+        self.assertRaises(RuntimeError, ws.send, 'foobar')
+        self.assertTrue(ws.closed)
+
+    def test_send_closed(self):
+        """
+        Attempting to send a payload when the websocket is already closed must
+        result in an `exc.WebSocketError`
+        """
+        ws = self.make_websocket()
+
+        ws.close()
+        self.assertTrue(ws.closed)
+
+        with self.assertRaises(exc.WebSocketError) as ctx:
+            ws.send('foobar')
+
+        self.assertTrue(ws.closed)
+        self.assertEqual(
+            u'The connection was closed',
+            unicode(ctx.exception)
+        )
