@@ -79,21 +79,21 @@ def _make_websocket(handler, environ):
         ("Connection", "Upgrade"),
     ]
 
+    prefix = ''
+
+    if environ['wsgi.websocket_version'] == 'hixie-76':
+        prefix = 'Sec-'
+
     if handler.ws_url:
-        header = 'Sec-WebSocket-Location'
-
-        if environ['wsgi.websocket_version'] == 'hixie-75':
-            header = 'WebSocket-Location'
-
-        headers.append((header, handler.ws_url))
+        headers.append((prefix + 'WebSocket-Location', handler.ws_url))
 
     if ws.protocol:
-        headers.append(("Sec-WebSocket-Protocol", ws.protocol))
+        headers.append((prefix + 'WebSocket-Protocol', ws.protocol))
 
     if ws.origin:
-        headers.append(("Sec-WebSocket-Origin", ws.origin))
+        headers.append((prefix + 'WebSocket-Origin', ws.origin))
 
-    handler.start_response("101 WebSocket Protocol Handshake", headers)
+    handler.start_response('101 WebSocket Protocol Handshake', headers)
 
 
 def upgrade_connection(handler, environ):

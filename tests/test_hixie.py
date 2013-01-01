@@ -5,7 +5,100 @@ from geventwebsocket import hixie, exceptions as exc
 from .util import FakeSocket, MockHandler
 
 
-class UpgradeConnectionTestCase(unittest.TestCase):
+class UpgradeConnectionHixie75TestCase(unittest.TestCase):
+    """
+    Tests for `hixie.upgrade_connection` for a hixie-75 websocket.
+    """
+
+    def make_handler(self, method='GET', version='HTTP/1.1', environ=None,
+                     socket=None):
+        environ = environ or {}
+        socket = socket or FakeSocket()
+
+        if method:
+            environ['REQUEST_METHOD'] = method
+
+        handler = MockHandler(environ, version)
+        handler.socket = socket
+        handler.ws_url = None
+
+        return handler
+
+    def test_sanity(self):
+        """
+        Ensure that given a valid challenge, a `hixie-75` websocket is
+        established.
+        """
+        environ = {}
+        handler = self.make_handler(environ=environ)
+
+        result = hixie.upgrade_connection(handler, environ)
+
+        self.assertIsNone(result)
+        self.assertEqual('hixie-75', environ['wsgi.websocket_version'])
+
+        ws = environ['wsgi.websocket']
+
+        self.assertIsInstance(ws, hixie.WebSocketHixie)
+        self.assertFalse(ws.closed)
+        self.assertEqual(handler.status, '101 WebSocket Protocol Handshake')
+        self.assertEqual(handler.headers, [
+            ('Upgrade', 'WebSocket'),
+            ('Connection', 'Upgrade')
+        ])
+
+    def test_protocol(self):
+        """
+        Ensure that the `Sec-WebSocket-Protocol` header is echoed back.
+        """
+        environ = {
+            'HTTP_SEC_WEBSOCKET_PROTOCOL': 'foobar'
+        }
+
+        handler = self.make_handler(environ=environ)
+
+        hixie.upgrade_connection(handler, environ)
+
+        self.assertEqual(handler.headers, [
+            ('Upgrade', 'WebSocket'),
+            ('Connection', 'Upgrade'),
+            ('WebSocket-Protocol', 'foobar'),
+            ])
+
+    def test_location(self):
+        """
+        Ensure that the `WebSocket-Location` header is sent.
+        """
+        handler = self.make_handler()
+        handler.ws_url = 'ws://localhost:6666/'
+
+        hixie.upgrade_connection(handler, {})
+
+        self.assertEqual(handler.headers, [
+            ('Upgrade', 'WebSocket'),
+            ('Connection', 'Upgrade'),
+            ('WebSocket-Location', 'ws://localhost:6666/'),
+        ])
+
+    def test_origin(self):
+        """
+        Ensure that the `WebSocket-Origin` header is sent.
+        """
+        environ = {
+            'HTTP_ORIGIN': 'foobar'
+        }
+        handler = self.make_handler(environ=environ)
+
+        hixie.upgrade_connection(handler, environ)
+
+        self.assertEqual(handler.headers, [
+            ('Upgrade', 'WebSocket'),
+            ('Connection', 'Upgrade'),
+            ('WebSocket-Origin', 'foobar'),
+        ])
+
+
+class UpgradeConnectionHixie76TestCase(unittest.TestCase):
     """
     Tests for `hixie.upgrade_connection`.
     """
@@ -28,6 +121,15 @@ class UpgradeConnectionTestCase(unittest.TestCase):
         handler.ws_url = None
 
         return handler
+
+    def make_hixie76(self):
+        environ = {
+            'HTTP_SEC_WEBSOCKET_KEY1': self.key1,
+            'HTTP_SEC_WEBSOCKET_KEY2': self.key2,
+        }
+
+        socket = FakeSocket('\x00' * 8)
+        return self.make_handler(environ=environ, socket=socket)
 
     def test_no_keys(self):
         """
@@ -193,12 +295,12 @@ class UpgradeConnectionTestCase(unittest.TestCase):
         """
         Ensure that the `Sec-WebSocket-Protocol` header is echoed back.
         """
+        handler = self.make_hixie76()
         environ = {
             'HTTP_SEC_WEBSOCKET_PROTOCOL': 'foobar'
         }
 
-        handler = self.make_handler(environ=environ)
-
+        environ.update(handler.environ)
         hixie.upgrade_connection(handler, environ)
 
         self.assertEqual(handler.headers, [
@@ -207,21 +309,14 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             ('Sec-WebSocket-Protocol', 'foobar'),
         ])
 
-    def test_location_76(self):
+    def test_location(self):
         """
-        Ensure that the `Sec-WebSocket-Location` header is sent for a hixie-76
-        websocket.
+        Ensure that the `Sec-WebSocket-Location` header is sent.
         """
-        environ = {
-            'HTTP_SEC_WEBSOCKET_KEY1': self.key1,
-            'HTTP_SEC_WEBSOCKET_KEY2': self.key2,
-        }
-
-        socket = FakeSocket('\x00' * 8)
-        handler = self.make_handler(environ=environ, socket=socket)
+        handler = self.make_hixie76()
         handler.ws_url = 'ws://localhost:6666/'
 
-        hixie.upgrade_connection(handler, environ)
+        hixie.upgrade_connection(handler, handler.environ)
 
         self.assertEqual(handler.headers, [
             ('Upgrade', 'WebSocket'),
@@ -229,35 +324,20 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             ('Sec-WebSocket-Location', 'ws://localhost:6666/'),
         ])
 
-    def test_location_75(self):
-        """
-        Ensure that the `WebSocket-Location` header is sent for a hixie-75
-        websocket.
-        """
-        handler = self.make_handler()
-        handler.ws_url = 'ws://localhost:6666/'
-
-        hixie.upgrade_connection(handler, {})
-
-        self.assertEqual(handler.headers, [
-            ('Upgrade', 'WebSocket'),
-            ('Connection', 'Upgrade'),
-            ('WebSocket-Location', 'ws://localhost:6666/'),
-        ])
-
     def test_origin(self):
         """
         Ensure that the `Sec-WebSocket-Origin` header is sent.
         """
+        handler = self.make_hixie76()
         environ = {
             'HTTP_ORIGIN': 'foobar'
         }
-        handler = self.make_handler(environ=environ)
 
+        environ.update(handler.environ)
         hixie.upgrade_connection(handler, environ)
 
         self.assertEqual(handler.headers, [
             ('Upgrade', 'WebSocket'),
             ('Connection', 'Upgrade'),
             ('Sec-WebSocket-Origin', 'foobar'),
-            ])
+        ])
