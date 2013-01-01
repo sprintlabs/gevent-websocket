@@ -88,6 +88,12 @@ class WebSocketHybi(WebSocket):
             raise
 
     def handle_close(self, header, payload):
+        """
+        Called when a close frame has been decoded from the stream.
+
+        :param header: The decoded `Header`.
+        :param payload: The bytestring payload associated with the close frame.
+        """
         if not payload:
             self.close(1000, None)
 
