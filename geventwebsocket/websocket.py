@@ -107,7 +107,7 @@ def encode_bytes(text):
         return text
 
     if not isinstance(text, unicode):
-        text = unicode(text)
+        text = unicode(text or '')
 
     return text.encode('utf-8')
 

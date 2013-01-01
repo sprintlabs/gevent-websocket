@@ -68,6 +68,12 @@ class EncodeBytesTestCase(unittest.TestCase):
         with self.assertRaises(UnicodeDecodeError) as ctx:
             websocket.encode_bytes(my_byte_string)
 
+    def test_none(self):
+        """
+        Encoding `None` must result in an empty string.
+        """
+        self.assertEqual(websocket.encode_bytes(None), '')
+
 
 class WrappedReadTestCase(unittest.TestCase):
     """
