@@ -26,12 +26,12 @@ class WebSocket(object):
         '_read',
     )
 
-    def __init__(self, socket, environ):
+    def __init__(self, socket, environ, rfile):
         self.environ = environ
         self.closed = False
 
         self._socket = socket
-        self._fobj = socket.makefile('rb', 0)
+        self._fobj = rfile
 
         self._write = socket.sendall
         self._read = wrapped_read(self._fobj)
@@ -57,18 +57,11 @@ class WebSocket(object):
         self.closed = True
 
         self._socket = None
+        self._fobj = None
         self._write = None
         self._read = None
 
         self.environ = None
-
-        try:
-            self._fobj.close()
-        except:
-            # TODO: Think about logging?
-            pass
-        finally:
-            self._fobj = None
 
     @property
     def origin(self):

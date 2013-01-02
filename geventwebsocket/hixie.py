@@ -23,8 +23,8 @@ class BaseWebSocket(WebSocket):
         '_buffer',
     )
 
-    def __init__(self, socket, environ):
-        super(BaseWebSocket, self).__init__(socket, environ)
+    def __init__(self, socket, environ, rfile):
+        super(BaseWebSocket, self).__init__(socket, environ, rfile)
 
         self._buffer = ''
 
@@ -176,9 +176,9 @@ class WebSocketHixie75(BaseWebSocket):
 def _make_websocket(handler, environ):
     # all looks good, lets rock
     if environ['wsgi.websocket_version'] == 'hixie-75':
-        ws = WebSocketHixie75(handler.socket, environ)
+        ws = WebSocketHixie75(handler.socket, environ, handler.rfile)
     elif environ['wsgi.websocket_version'] == 'hixie-76':
-        ws = WebSocketHixie76(handler.socket, environ)
+        ws = WebSocketHixie76(handler.socket, environ, handler.rfile)
     else:
         raise exc.WebSocketError('Unknown websocket version')
 

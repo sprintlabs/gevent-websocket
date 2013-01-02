@@ -468,7 +468,7 @@ def upgrade_connection(handler, environ):
         return [msg]
 
     environ.update({
-        'wsgi.websocket': WebSocketHybi(handler.socket, environ),
+        'wsgi.websocket': WebSocketHybi(handler.socket, environ, handler.rfile),
         'wsgi.websocket_version': 'hybi-%s' % version
     })
 

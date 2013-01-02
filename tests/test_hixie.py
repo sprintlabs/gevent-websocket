@@ -23,6 +23,7 @@ class UpgradeConnectionHixie75TestCase(unittest.TestCase):
 
         handler = MockHandler(environ, version)
         handler.socket = socket
+        handler.rfile = socket.makefile('rb', 0)
         handler.ws_url = None
 
         return handler
@@ -121,6 +122,7 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
 
         handler = MockHandler(environ, version)
         handler.socket = socket
+        handler.rfile = socket.makefile('rb', 0)
         handler.ws_url = None
 
         return handler
@@ -354,7 +356,7 @@ class BaseStreamTestCase(unittest.TestCase):
         socket = socket or FakeSocket()
         environ = environ or {}
 
-        return hixie.BaseWebSocket(socket, environ)
+        return hixie.BaseWebSocket(socket, environ, socket.makefile('rb', 0))
 
 
 class SendTestCase(BaseStreamTestCase):
@@ -465,7 +467,7 @@ class MessageReadingTestCase(BaseStreamTestCase):
             data += '\x00' + payload.encode('utf-8') + '\xff'
 
         socket = self.make_socket(data)
-        ws = hixie.BaseWebSocket(socket, {})
+        ws = hixie.BaseWebSocket(socket, {}, socket.makefile('rb', 0))
 
         return ws
 
@@ -522,7 +524,7 @@ class MessageReadingTestCase(BaseStreamTestCase):
         """
         for frame_type in xrange(0x01, 0xff):
             socket = self.make_socket(chr(frame_type))
-            ws = hixie.BaseWebSocket(socket, {})
+            ws = hixie.BaseWebSocket(socket, {}, socket.makefile('rb', 0))
 
             with self.assertRaises(exc.ProtocolError) as ctx:
                 ws.read_message()

@@ -168,7 +168,7 @@ class WebSocketTestCase(unittest.TestCase):
     def make_websocket(self, socket=None, environ=None):
         socket = socket or FakeSocket()
 
-        return websocket.WebSocket(socket, environ)
+        return websocket.WebSocket(socket, environ, socket.makefile('rb', 0))
 
     def test_init(self):
         """
@@ -203,9 +203,6 @@ class WebSocketTestCase(unittest.TestCase):
         self.assertIsNone(ws._fobj)
         self.assertIsNone(ws._read)
         self.assertIsNone(ws._write)
-
-        # Ensure that the file object was explicitly closed.
-        self.assertTrue(fobj.closed)
 
     def test_origin(self):
         """

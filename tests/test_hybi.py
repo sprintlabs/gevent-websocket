@@ -28,6 +28,7 @@ class UpgradeConnectionTestCase(unittest.TestCase):
 
         handler = MockHandler(environ, version)
         handler.socket = socket
+        handler.rfile = socket.makefile('rb', 0)
 
         return handler
 
@@ -508,7 +509,7 @@ class BaseStreamTestCase(unittest.TestCase):
         socket = socket or FakeSocket()
         environ = environ or {}
 
-        return hybi.WebSocketHybi(socket, environ)
+        return hybi.WebSocketHybi(socket, environ, socket.makefile('rb', 0))
 
 
 class FrameReadingTestCase(BaseStreamTestCase):
@@ -607,7 +608,7 @@ class MessageReadingTestCase(BaseStreamTestCase):
             data += payload
 
         socket = self.make_socket(data)
-        ws = hybi.WebSocketHybi(socket, {})
+        ws = hybi.WebSocketHybi(socket, {}, socket.makefile('rb', 0))
 
         return ws
 
