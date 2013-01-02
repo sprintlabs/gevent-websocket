@@ -111,9 +111,9 @@ def reconstruct_url(environ):
     secure = environ['wsgi.url_scheme'].lower() == 'https'
 
     if secure:
-        scheme = 'wss://'
+        scheme = 'wss'
     else:
-        scheme = 'ws://'
+        scheme = 'ws'
 
     host = environ.get('HTTP_HOST', None)
 
