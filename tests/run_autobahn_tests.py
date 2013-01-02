@@ -46,11 +46,14 @@ def run_echo_server(address):
         pass
 
 
-def run_autobahn_test_suite():
+def run_autobahn():
     """
     Spawn the autobahn test suite in a subprocess
     """
-    cmd = ['wstest -m fuzzingclient -s autobahn.json']
+    import os.path
+
+    cmd = ['wstest -m fuzzingclient -s %s/autobahn.json' % (
+        os.path.dirname(__file__),)]
 
     wstest = subprocess.Popen(
         cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
@@ -89,7 +92,7 @@ if __name__ == '__main__':
     address = ('localhost', 8000)
 
     echo_thread = gevent.spawn(run_echo_server, address)
-    wstest_thread = gevent.spawn(run_autobahn_test_suite)
+    wstest_thread = gevent.spawn(run_autobahn)
 
     ret = waitany([echo_thread, wstest_thread])
 
