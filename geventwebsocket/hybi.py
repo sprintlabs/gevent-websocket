@@ -250,10 +250,7 @@ class WebSocketHybi(WebSocket):
         Send a frame over the websocket with message as its payload
         """
         if binary is None:
-            binary = False
-
-            if isinstance(message, str):
-                binary = True
+            binary = not isinstance(message, (str, unicode))
 
         opcode = OPCODE_BINARY if binary else OPCODE_TEXT
 
