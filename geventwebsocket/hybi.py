@@ -198,7 +198,7 @@ class WebSocketHybi(WebSocket):
         if opcode == OPCODE_TEXT:
             return self._decode_bytes(message)
 
-        return message
+        return bytearray(message)
 
     def receive(self):
         """
@@ -232,7 +232,11 @@ class WebSocketHybi(WebSocket):
             raise exc.WebSocketError('The connection was closed')
 
         try:
-            message = encode_bytes(message)
+            if opcode == OPCODE_TEXT:
+                message = encode_bytes(message)
+            elif opcode == OPCODE_BINARY:
+                message = str(message)
+
             header = encode_header(True, opcode, '', len(message), 0)
 
             self._write(header + message)

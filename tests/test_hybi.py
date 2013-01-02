@@ -714,7 +714,7 @@ class MessageReadingTestCase(BaseStreamTestCase):
 
         msg = ws.read_message()
 
-        self.assertIsInstance(msg, str)
+        self.assertIsInstance(msg, bytearray)
         self.assertEqual(msg, 'foo')
 
     def test_unknown_opcode(self):
