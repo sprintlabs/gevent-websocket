@@ -448,3 +448,61 @@ class SendTestCase(BaseStreamTestCase):
             u'The connection was closed',
             unicode(ctx.exception)
         )
+
+
+class MessageReadingTestCase(BaseStreamTestCase):
+    """
+    Tests for `BaseWebSocket.read_message`
+    """
+
+    def make_websocket(self, *args):
+        """
+        :param args: payloads
+        """
+        data = ''
+
+        for payload in args:
+            data += '\x00' + payload.encode('utf-8') + '\xff'
+
+        socket = self.make_socket(data)
+        ws = hixie.BaseWebSocket(socket, {})
+
+        return ws
+
+    def test_single_frame_text(self):
+        """
+        Ensure that a single, contained frame is decoded correctly.
+        """
+        ws = self.make_websocket('foo')
+
+        msg = ws.read_message()
+
+        self.assertIsInstance(msg, unicode)
+        self.assertEqual(msg, 'foo')
+
+    def test_large_frame(self):
+        """
+        Reading a large frame should buffer the data.
+        """
+        ws = self.make_websocket('a' * 8096)
+
+        msg = ws.read_message()
+
+        self.assertIsInstance(msg, unicode)
+        self.assertEqual(msg, 'a' * 8096)
+
+    def test_multiple_large_frames(self):
+        """
+        Reading a large frame should buffer the data.
+        """
+        ws = self.make_websocket('a' * 8096, 'b')
+
+        msg = ws.read_message()
+
+        self.assertIsInstance(msg, unicode)
+        self.assertEqual(msg, 'a' * 8096)
+
+        msg = ws.read_message()
+
+        self.assertIsInstance(msg, unicode)
+        self.assertEqual(msg, 'b')

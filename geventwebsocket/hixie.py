@@ -19,7 +19,14 @@ class SecKeyError(Exception):
 
 
 class BaseWebSocket(WebSocket):
-    __slots__ = ()
+    __slots__ = (
+        '_buffer',
+    )
+
+    def __init__(self, socket, environ):
+        super(BaseWebSocket, self).__init__(socket, environ)
+
+        self._buffer = ''
 
     def send_frame(self, data):
         """
@@ -53,50 +60,101 @@ class BaseWebSocket(WebSocket):
 
             raise
 
-    def _read_message(self):
-        buf = ''
-
-        while True:
-            # TODO: reading 1 byte at a time is quite inefficient
-            byte = self._read(1)
-
-            if not byte:
-                raise exc.WebSocketError('Connection closed unexpectedly while '
-                                         'reading message: %r' % (buf,))
-
-            if byte == '\xff':
-                return buf
-
-            buf += byte
-
-        return buf
-
-    def receive(self):
+    def close(self):
+        """
+        Close the websocket. The draft hixie protocols say to send an empty
+        frame as the close frame.
+        """
         if self.closed:
             return
 
-        frame_type = self._read(1)
+        try:
+            # an empty frame is a close frame
+            self.send_frame('')
+        except exc.WebSocketError:
+            # failed to write the closing frame but it's ok because we're
+            # closing the socket anyway.
+            pass
+        finally:
+            super(BaseWebSocket, self).close()
+
+        self._buffer = None
+
+    def _read_from_buffer(self, size):
+        socket_read_size = size - len(self._buffer)
+
+        data = self._buffer[:size]
+
+        if socket_read_size:
+            data += self._read(socket_read_size)
+
+        self._buffer = self._buffer[size:]
+
+        return data
+
+    def _write_to_buffer(self, data):
+        self._buffer += data
+
+    def read_message(self):
+        """
+        Return the next message from the socket.
+
+        This is an internal method as calling this will not cleanup correctly
+        if an exception is called. Use `receive` instead.
+        """
+        frame_type = self._read_from_buffer(1)
 
         if not frame_type:
-            # whoops, something went wrong
-            self.close()
-
             return
 
-        if frame_type == '\x00':
-            try:
-                buf = self._read_message()
-            except:
-                self.close()
+        if frame_type != '\x00':
+            raise exc.WebSocketError("Received an invalid frame_type=%r" % (
+                ord(frame_type),))
 
-                raise
+        buf = ''
 
-            return buf.decode("utf-8")
+        while True:
+            data = self._read_from_buffer(1024)
 
-        self.close()
+            chunks = data.split('\xff', 1)
 
-        raise exc.WebSocketError("Received an invalid frame_type=%r" % (
-            ord(frame_type),))
+            if len(chunks) == 1:
+                # read only part of a message
+                buf += data
+
+                continue
+
+            fragment, remaining = chunks
+
+            # full frame, with some remaining
+            buf += fragment
+
+            if remaining:
+                self._write_to_buffer(remaining)
+
+            break
+
+        return buf.decode('utf-8')
+
+    def receive(self):
+        """
+        Read and return a message from the stream. If `None` is returned, then
+        the socket is considered closed/errored.
+        """
+        if self.closed:
+            return
+
+        try:
+            msg = self.read_message()
+        except:
+            self.close()
+
+            raise
+
+        if not msg:
+            self.close()
+
+        return msg
 
 
 class WebSocketHixie76(BaseWebSocket):
