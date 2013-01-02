@@ -205,6 +205,9 @@ class WebSocketHybi(WebSocket):
         Read and return a message from the stream. If `None` is returned, then
         the socket is considered closed/errored.
         """
+        if self.closed:
+            return
+
         try:
             return self.read_message()
         except exc.ProtocolError:

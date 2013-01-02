@@ -985,6 +985,19 @@ class ReceiveTestCase(BaseStreamTestCase):
         self.assertRaises(RuntimeError, ws.receive)
         self.assertTrue(ws.closed)
 
+    @patch.object(hybi.WebSocketHybi, 'read_message')
+    def test_closed(self, read_message):
+        """
+        Attempting to read from a closed socket must return `None`.
+        """
+        read_message.return_value = None
+        ws = self.make_websocket()
+
+        ws.close()
+
+        msg = ws.receive()
+        self.assertIsNone(msg)
+        self.assertFalse(read_message.called)
 
 class SendTestCase(BaseStreamTestCase):
     """
