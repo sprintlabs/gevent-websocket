@@ -284,3 +284,42 @@ class UpgradeWebsocketTestCase(HandlerTestCase):
         result = handler.upgrade_websocket()
 
         self.assertFalse(result)
+
+    def test_set_status(self):
+        """
+        Setting a status != 101 in `*.upgrade_connection` must result in a
+        failure.
+        """
+        from geventwebsocket import hixie
+
+        environ = {
+            'REQUEST_METHOD': 'GET',
+            'HTTP_ORIGIN': '*'
+        }
+
+        with mock.patch.object(hixie, 'upgrade_connection') as upgrade:
+            handler = self.make_handler(environ)
+            handler.status = '400 Bad Request'
+
+            result = handler.upgrade_websocket()
+
+            self.assertFalse(result)
+
+    def test_upgrade(self):
+        """
+        Given the correct conditions, `upgrade_websocket` should return true.
+        """
+        from geventwebsocket import hixie
+
+        environ = {
+            'REQUEST_METHOD': 'GET',
+            'HTTP_ORIGIN': '*'
+        }
+
+        with mock.patch.object(hixie, 'upgrade_connection') as upgrade:
+            handler = self.make_handler(environ)
+            handler.status = '101 Switching Protocol'
+
+            result = handler.upgrade_websocket()
+
+            self.assertTrue(result)
