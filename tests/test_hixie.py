@@ -506,3 +506,92 @@ class MessageReadingTestCase(BaseStreamTestCase):
 
         self.assertIsInstance(msg, unicode)
         self.assertEqual(msg, 'b')
+
+    def test_empty_socket(self):
+        """
+        Failing to read from the socket must return None.
+        """
+        ws = self.make_websocket()
+
+        msg = ws.read_message()
+        self.assertIsNone(msg)
+
+    def test_bad_frame_type(self):
+        """
+        A frame type != 0x00 should result in an error.
+        """
+        for frame_type in xrange(0x01, 0xff):
+            socket = self.make_socket(chr(frame_type))
+            ws = hixie.BaseWebSocket(socket, {})
+
+            with self.assertRaises(exc.ProtocolError) as ctx:
+                ws.read_message()
+
+            self.assertEqual(
+                unicode(ctx.exception),
+                u'Received an invalid frame_type=%s' % (frame_type,)
+            )
+
+
+class ReceiveTestCase(BaseStreamTestCase):
+    """
+    Tests for `BaseWebSocket.receive`
+    """
+
+    def setUp(self):
+        self._patcher = patch.object(hixie.BaseWebSocket, 'read_message')
+        self.read_message = self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+
+    def test_closed(self):
+        """
+        Attempting to read from a closed socket must return `None`.
+        """
+        ws = self.make_websocket()
+
+        ws.close()
+
+        msg = ws.receive()
+        self.assertIsNone(msg)
+        self.assertFalse(self.read_message.called)
+
+    def test_return(self):
+        """
+        Reading from the socket must return the message.
+        """
+        self.read_message.return_value = u'foobar'
+
+        ws = self.make_websocket()
+
+        msg = ws.receive()
+
+        self.assertEqual(msg, self.read_message.return_value)
+
+    def test_empty_message(self):
+        """
+        An empty message means close the socket.
+        """
+        self.read_message.return_value = None
+
+        ws = self.make_websocket()
+
+        msg = ws.receive()
+
+        self.assertEqual(msg, self.read_message.return_value)
+        self.assertTrue(ws.closed)
+
+    def test_error(self):
+        """
+        Any error must force the websocket to close.
+        """
+        class MyTestError(Exception):
+            pass
+
+        self.read_message.side_effect = MyTestError
+        ws = self.make_websocket()
+
+        self.assertFalse(ws.closed)
+        self.assertRaises(MyTestError, ws.receive)
+        self.assertTrue(ws.closed)

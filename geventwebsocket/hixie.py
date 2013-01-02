@@ -108,7 +108,7 @@ class BaseWebSocket(WebSocket):
             return
 
         if frame_type != '\x00':
-            raise exc.WebSocketError("Received an invalid frame_type=%r" % (
+            raise exc.ProtocolError("Received an invalid frame_type=%r" % (
                 ord(frame_type),))
 
         buf = ''
