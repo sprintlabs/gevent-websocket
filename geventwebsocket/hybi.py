@@ -309,6 +309,7 @@ def is_valid_close_code(code):
 
     return True
 
+
 def decode_header(stream):
     """
     Decode a Hybi header.
