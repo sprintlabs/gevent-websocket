@@ -32,7 +32,7 @@ class WebSocketHandler(WSGIHandler):
             connection = self.environ.get('HTTP_CONNECTION', '').lower()
 
             if connection == 'upgrade':
-                if not self.upgrade_websocket() and self.status:
+                if not self.upgrade_websocket() and hasattr(self, 'status'):
                     # the request was handled, probably with an error status
                     self.process_result()
 
