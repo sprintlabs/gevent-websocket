@@ -4,7 +4,14 @@ import subprocess
 import gevent
 from gevent import monkey, pywsgi
 
-monkey.patch_all(subprocess=True)
+monkey.patch_all()
+
+try:
+    from gevent import subprocess
+except ImportError:
+    monkey.patch_subprocess()
+
+    import subprocess
 
 import geventwebsocket
 
