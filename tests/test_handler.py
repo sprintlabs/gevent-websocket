@@ -91,6 +91,7 @@ class HandlerTestCase(unittest.TestCase):
         my_handler.application = mock.Mock()
         my_handler.process_result = mock.Mock()
         my_handler.request_version = 'HTTP/1.1'
+        my_handler.headers_sent = False
 
         return my_handler
 

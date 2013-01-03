@@ -54,7 +54,8 @@ class WebSocketHandler(WSGIHandler):
         self.close_connection = True
         self.provided_date = True
 
-        self._write_with_headers(None)
+        if self.status and not self.headers_sent:
+            self.write('')
 
         if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
             return
