@@ -1,3 +1,4 @@
+import sys
 from setuptools import setup, find_packages
 
 
@@ -37,6 +38,9 @@ def get_tests_requires():
         from unittest import mock
     except ImportError:
         packages.append('mock')
+
+    if sys.version_info[:2] < (2, 7):
+        packages.append('unittest2')
 
     return packages
 
