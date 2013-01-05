@@ -94,6 +94,7 @@ class HandlerTestCase(unittest.TestCase):
         my_handler.headers_sent = False
         # gevent 0.13.*
         my_handler.response_headers_list = []
+        my_handler.result = []
 
         return my_handler
 
