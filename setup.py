@@ -33,13 +33,6 @@ def get_tests_requires():
     """
     packages = get_package_manifest('requirements_dev.txt')
 
-    # check for subprocess support
-    try:
-        # gevent > 1.0 support subprocess out of the box
-        from gevent import subprocess
-    except ImportError:
-        packages.append('gevent-subprocess')
-
     try:
         from unittest import mock
     except ImportError:
