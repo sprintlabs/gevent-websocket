@@ -1,5 +1,9 @@
 language: python
 
+before_install:
+ - sudo apt-get update -qq
+ - sudo apt-get install -qq libevent-dev libev-dev
+
 python:
   - "2.6"
   - "2.7"
