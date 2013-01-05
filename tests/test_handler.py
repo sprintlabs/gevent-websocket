@@ -92,6 +92,8 @@ class HandlerTestCase(unittest.TestCase):
         my_handler.process_result = mock.Mock()
         my_handler.request_version = 'HTTP/1.1'
         my_handler.headers_sent = False
+        # gevent 0.13.*
+        my_handler.response_headers_list = []
 
         return my_handler
 
