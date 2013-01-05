@@ -2,6 +2,8 @@
 gevent-websocket
 ================
 
+.. image:: https://secure.travis-ci.org/njoyce/gevent-websocket.png?branch=master
+
 `gevent-websocket`_ is a websocket library for the gevent_ networking library
 written written and maintained by `Jeffrey Gelens`_ It is licensed under the BSD license.
 
