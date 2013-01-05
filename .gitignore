@@ -2,3 +2,5 @@
 .coverage
 htmlcov
 coverage
+gevent_websocket.egg-info
+build
