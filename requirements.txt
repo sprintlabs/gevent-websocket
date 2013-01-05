@@ -1,1 +1,2 @@
+# see setup.py#get_install_requires
 gevent>=0.13

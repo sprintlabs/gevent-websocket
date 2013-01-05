@@ -1,2 +1,2 @@
+# see setup.py#get_tests_requires
 autobahntestsuite>=0.5
-mock
