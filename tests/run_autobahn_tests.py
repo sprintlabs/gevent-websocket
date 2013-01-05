@@ -1,19 +1,18 @@
 import sys
-import subprocess
 
 import gevent
-from gevent import monkey, pywsgi
-
-monkey.patch_all()
+import geventwebsocket
 
 try:
-    from gevent import subprocess
+    # gevent >= 1.0
+    from gevent.subprocess import Popen, PIPE
 except ImportError:
-    monkey.patch_subprocess()
+    try:
+        from gevsubprocess import GPopen as Popen, PIPE
+    except ImportError:
+        sys.stderr.write('Package gevent-subprocess required but not found.')
 
-    import subprocess
-
-import geventwebsocket
+        raise SystemExit(2)
 
 
 def autobahn_echo(environ, start_response):
@@ -44,6 +43,8 @@ def run_echo_server(address):
 
     :param address: The host/port tuple where to host the echo server.
     """
+    from gevent import pywsgi
+
     server = pywsgi.WSGIServer(
         address, autobahn_echo,
         handler_class=geventwebsocket.WebSocketHandler)
@@ -63,8 +64,7 @@ def run_autobahn():
     cmd = ['wstest -m fuzzingclient -s %s/autobahn.json' % (
         os.path.dirname(__file__),)]
 
-    wstest = subprocess.Popen(
-        cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+    wstest = Popen(cmd, stderr=PIPE, stdout=PIPE, shell=True)
 
     if wstest.wait():
         # something went wrong, it's boom time.
