@@ -10,9 +10,8 @@ except ImportError:
     try:
         from gevsubprocess import GPopen as Popen, PIPE
     except ImportError:
-        sys.stderr.write('Package gevent-subprocess required but not found.')
-
-        raise SystemExit(2)
+        Popen = None
+        PIPE = None
 
 
 def autobahn_echo(environ, start_response):
@@ -97,6 +96,11 @@ def waitany(events, timeout=None):
 
 
 if __name__ == '__main__':
+    if not Popen:
+        sys.stderr.write('Package gevent-subprocess required but not found.')
+
+        raise SystemExit(2)
+
     address = ('localhost', 8000)
 
     echo_thread = gevent.spawn(run_echo_server, address)
