@@ -241,6 +241,25 @@ class RunApplicationTestCase(HandlerTestCase):
 
         self.assertFalse(handler.application.called)
 
+    def test_broken_socket(self):
+        """
+        If a socket error occurs when upgrading the websocket, ensure the
+        underlying application is not called.
+        """
+        environ = {
+            'HTTP_UPGRADE': 'WebSocket',
+            'HTTP_CONNECTION': 'Upgrade',
+        }
+        handler = self.make_handler(environ)
+
+        with mock.patch.object(handler, 'upgrade_websocket') as upgrade:
+            from socket import error
+            upgrade.side_effect = error
+
+            self.assertRaises(error, handler.run_application)
+
+        self.assertFalse(handler.application.called)
+
 
 class UpgradeWebsocketTestCase(HandlerTestCase):
     """
