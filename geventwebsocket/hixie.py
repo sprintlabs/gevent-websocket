@@ -53,12 +53,7 @@ class BaseWebSocket(WebSocket):
             # sending an empty frame is considered a close frame ..
             return
 
-        try:
-            self.send_frame(message.encode('utf-8'))
-        except:
-            self.close()
-
-            raise
+        self.send_frame(message.encode('utf-8'))
 
     def close(self):
         """
@@ -146,10 +141,8 @@ class BaseWebSocket(WebSocket):
 
         try:
             msg = self.read_message()
-        except:
-            self.close()
-
-            raise
+        except error:
+            raise exc.WebSocketError('Socket is dead')
 
         if not msg:
             self.close()

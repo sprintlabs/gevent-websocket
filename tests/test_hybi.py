@@ -931,7 +931,7 @@ class ReceiveTestCase(BaseStreamTestCase):
 
     def test_broken_socket(self):
         """
-        Ensure that when the socket is broken that the websocket is closed.
+        Ensure that when the socket is broken that the websocket is NOT closed.
         """
         from socket import error
 
@@ -946,7 +946,7 @@ class ReceiveTestCase(BaseStreamTestCase):
             self.assertRaises(error, ws._socket.read, 1)
             self.assertRaises(exc.WebSocketError, ws.receive)
 
-            mock.assert_called_with(None)
+            self.assertFalse(mock.close.called)
 
     @patch.object(hybi.WebSocketHybi, 'read_message')
     def test_read_message(self, read_message):
@@ -980,7 +980,7 @@ class ReceiveTestCase(BaseStreamTestCase):
     @patch.object(hybi.WebSocketHybi, 'read_message')
     def test_random_error(self, read_message):
         """
-        When _any_ other type of exception is raised, the websocket must be
+        When _any_ other type of exception is raised, the websocket must NOT be
         closed and send a close frame.
         """
         read_message.side_effect = RuntimeError
@@ -988,7 +988,7 @@ class ReceiveTestCase(BaseStreamTestCase):
         ws = self.make_websocket()
 
         self.assertRaises(RuntimeError, ws.receive)
-        self.assertTrue(ws.closed)
+        self.assertFalse(ws.closed)
 
     @patch.object(hybi.WebSocketHybi, 'read_message')
     def test_closed(self, read_message):
@@ -1058,7 +1058,8 @@ class SendTestCase(BaseStreamTestCase):
     @patch.object(FakeSocket, 'sendall')
     def test_broken_socket(self, sendall):
         """
-        Any attempt to write to this socket will result in an error
+        Any attempt to write to this socket will result in an error. The
+        websocket must not be closed, but raise `WebSocketError`.
         """
         from socket import error
 
@@ -1067,20 +1068,20 @@ class SendTestCase(BaseStreamTestCase):
         ws = self.make_websocket()
         self.assertFalse(ws.closed)
         self.assertRaises(exc.WebSocketError, ws.send, 'foobar')
-        self.assertTrue(ws.closed)
+        self.assertFalse(ws.closed)
 
     @patch.object(FakeSocket, 'sendall')
     def test_random_exception(self, sendall):
         """
-        Any random exception when attempting to send a payload must result in a
-        closed websocket.
+        Any random exception when attempting to send a payload must NOT result
+        in a closed websocket.
         """
         sendall.side_effect = RuntimeError
 
         ws = self.make_websocket()
-        self.assertFalse(ws.closed)
+
         self.assertRaises(RuntimeError, ws.send, 'foobar')
-        self.assertTrue(ws.closed)
+        self.assertFalse(ws.closed)
 
     def test_send_closed(self):
         """

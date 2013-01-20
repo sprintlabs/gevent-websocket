@@ -214,15 +214,8 @@ class WebSocketHybi(WebSocket):
             self.close(1002)
 
             raise
-        except exc.WebSocketError:
-            # an attempt to read from the socket caused an error
-            self.close(None)
-
-            raise
-        except:
-            self.close(None)
-
-            raise
+        except error:
+            raise exc.WebSocketError('Socket is dead')
 
     def send_frame(self, message, opcode):
         """
@@ -231,23 +224,17 @@ class WebSocketHybi(WebSocket):
         if self.closed:
             raise exc.WebSocketError('The connection was closed')
 
+        if opcode == OPCODE_TEXT:
+            message = encode_bytes(message)
+        elif opcode == OPCODE_BINARY:
+            message = str(message)
+
+        header = encode_header(True, opcode, '', len(message), 0)
+
         try:
-            if opcode == OPCODE_TEXT:
-                message = encode_bytes(message)
-            elif opcode == OPCODE_BINARY:
-                message = str(message)
-
-            header = encode_header(True, opcode, '', len(message), 0)
-
             self._write(header + message)
         except error:
-            self.close(None)
-
             raise exc.WebSocketError('Socket is dead')
-        except Exception:
-            self.close(None)
-
-            raise
 
     def send(self, message, binary=None):
         """

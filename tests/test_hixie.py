@@ -396,8 +396,8 @@ class SendTestCase(BaseStreamTestCase):
 
     def test_invalid_utf8(self):
         """
-        Attempting to send binary data should close the websocket and raise the
-        exception.
+        Attempting to send binary data should NOT close the websocket and raise
+        the exception.
         """
         socket = FakeSocket()
         ws = self.make_websocket(socket)
@@ -407,12 +407,13 @@ class SendTestCase(BaseStreamTestCase):
         with self.assertRaises(UnicodeDecodeError) as ctx:
             ws.send(blob)
 
-        self.assertTrue(ws.closed)
+        self.assertFalse(ws.closed)
 
     @patch.object(FakeSocket, 'sendall')
     def test_broken_socket(self, sendall):
         """
-        Any attempt to write to this socket will result in an error
+        Any attempt to write to this socket will result in an error. A
+        WebSocketError should be raised but the websocket must not be closed.
         """
         from socket import error
 
@@ -421,20 +422,20 @@ class SendTestCase(BaseStreamTestCase):
         ws = self.make_websocket()
         self.assertFalse(ws.closed)
         self.assertRaises(exc.WebSocketError, ws.send, 'foobar')
-        self.assertTrue(ws.closed)
+        self.assertFalse(ws.closed)
 
     @patch.object(FakeSocket, 'sendall')
     def test_random_exception(self, sendall):
         """
-        Any random exception when attempting to send a payload must result in a
-        closed websocket.
+        Any random exception when attempting to send a payload must NOT result
+        in a closed websocket.
         """
         sendall.side_effect = RuntimeError
 
         ws = self.make_websocket()
         self.assertFalse(ws.closed)
         self.assertRaises(RuntimeError, ws.send, 'foobar')
-        self.assertTrue(ws.closed)
+        self.assertFalse(ws.closed)
 
     def test_send_closed(self):
         """
@@ -586,18 +587,4 @@ class ReceiveTestCase(BaseStreamTestCase):
         msg = ws.receive()
 
         self.assertEqual(msg, self.read_message.return_value)
-        self.assertTrue(ws.closed)
-
-    def test_error(self):
-        """
-        Any error must force the websocket to close.
-        """
-        class MyTestError(Exception):
-            pass
-
-        self.read_message.side_effect = MyTestError
-        ws = self.make_websocket()
-
-        self.assertFalse(ws.closed)
-        self.assertRaises(MyTestError, ws.receive)
         self.assertTrue(ws.closed)
