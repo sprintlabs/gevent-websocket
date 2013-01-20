@@ -26,6 +26,17 @@ class WebSocketHandler(WSGIHandler):
     def ws_url(self):
         return reconstruct_url(self.environ)
 
+    def run_websocket(self):
+        if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
+            return
+
+        # since we're now a websocket connection, we don't care what the
+        # application actually responds with for the http response
+        try:
+            self.application(self.environ, self._fake_start_response)
+        finally:
+            self.websocket.close()
+
     def run_application(self):
         upgrade = self.environ.get('HTTP_UPGRADE', '').lower()
 
@@ -58,12 +69,7 @@ class WebSocketHandler(WSGIHandler):
         if self.status and not self.headers_sent:
             self.write('')
 
-        if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
-            return
-
-        # since we're now a websocket connection, we don't care what the
-        # application actually responds with for the http response
-        self.application(self.environ, self._fake_start_response)
+        self.run_websocket()
 
     def _fake_start_response(self, status, headers):
         pass

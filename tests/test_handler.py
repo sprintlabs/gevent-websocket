@@ -181,7 +181,7 @@ class RunApplicationTestCase(HandlerTestCase):
         """
         A successful upgrade requires specific attrs to be set
         """
-        sentinel = object()
+        sentinel = mock.Mock()
         environ = {
             'HTTP_UPGRADE': 'WebSocket',
             'HTTP_CONNECTION': 'Upgrade',
@@ -207,6 +207,52 @@ class RunApplicationTestCase(HandlerTestCase):
         self.assertTrue(handler.provided_date)
 
         self.assertTrue(handler.application.called)
+
+    def test_close_websocket(self):
+        """
+        When the application has been run, the websocket must be closed.
+        """
+        websocket = mock.Mock()
+        environ = {
+            'wsgi.websocket': websocket
+        }
+        handler = self.make_handler(environ)
+
+        handler.websocket = websocket
+        self.executed = False
+
+        def my_app(environ, start_response):
+            self.executed = True
+            self.assertFalse(websocket.close.called)
+
+        handler.application = my_app
+        handler.run_websocket()
+
+        self.assertTrue(self.executed)
+        self.assertTrue(websocket.close.called)
+
+    def test_close_websocket_error(self):
+        """
+        Even hen the application errors, the websocket must be closed.
+        """
+        websocket = mock.Mock()
+        environ = {
+            'wsgi.websocket': websocket
+        }
+        handler = self.make_handler(environ)
+
+        handler.websocket = websocket
+
+        class MyTestException(Exception):
+            pass
+
+        def my_app(environ, start_response):
+            raise MyTestException
+
+        handler.application = my_app
+        self.assertRaises(MyTestException, handler.run_websocket)
+
+        self.assertTrue(websocket.close.called)
 
     def test_prevent_wsgi_call(self):
         """
