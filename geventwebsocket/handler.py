@@ -1,5 +1,4 @@
 import urlparse
-from socket import error
 
 from gevent.pywsgi import WSGIHandler
 
