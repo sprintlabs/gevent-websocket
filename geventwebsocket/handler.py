@@ -15,8 +15,8 @@ class WebSocketHandler(WSGIHandler):
 
       mywebsockethandler.prevent_wsgi_call = True
 
-    before calling handle_one_response().  This is useful if you want to do
-    more things before calling the app, and want to off-load the WebSocket
+    before calling run_application().  This is useful if you want to do more
+    things before calling the app, and want to off-load the WebSocket
     negotiations to this library.  Socket.IO needs this for example, to send
     the 'ack' before yielding the control to your WSGI app.
     """
@@ -26,6 +26,9 @@ class WebSocketHandler(WSGIHandler):
         return reconstruct_url(self.environ)
 
     def run_websocket(self):
+        """
+        Called when a websocket has been created successfully.
+        """
         if hasattr(self, 'prevent_wsgi_call') and self.prevent_wsgi_call:
             return
 
@@ -37,6 +40,12 @@ class WebSocketHandler(WSGIHandler):
             self.websocket.close()
 
     def run_application(self):
+        """
+        Attempt to create a websocket. If the request is not a WebSocket
+        upgrade request, it will be passed to the application object.
+
+        You probably don't want to override this function, see `run_websocket`.
+        """
         upgrade = self.environ.get('HTTP_UPGRADE', '').lower()
 
         if upgrade == 'websocket':
@@ -57,12 +66,13 @@ class WebSocketHandler(WSGIHandler):
 
             return
 
-        # so that `finalize_headers` doesn't spit out a Content-Length header
+        # So that `finalize_headers` doesn't spit out a Content-Length header
         self.provided_content_length = True
-        # the websocket is now controlling the response
+        # The websocket is now controlling the response
         self.response_use_chunked = False
-        # once the request is over, the connection must be closed
+        # Once the request is over, the connection must be closed
         self.close_connection = True
+        # Don't write the date in the response
         self.provided_date = True
 
         if self.status and not self.headers_sent:
@@ -76,7 +86,8 @@ class WebSocketHandler(WSGIHandler):
     def upgrade_websocket(self):
         """
         Attempt to upgrade the current environ into a websocket enabled
-        connection.
+        connection. If successful, the environ dict with be updated with two
+        new entries, `wsgi.websocket` and `wsgi.websocket_version`.
 
         :returns: Whether the upgrade was successful.
         """
