@@ -71,9 +71,8 @@ class BaseWebSocket(WebSocket):
             # closing the socket anyway.
             pass
         finally:
+            self._buffer = None
             super(BaseWebSocket, self).close()
-
-        self._buffer = None
 
     def _read_from_buffer(self, size):
         socket_read_size = size - len(self._buffer)
