@@ -164,7 +164,6 @@ class WebSocketHixie75(BaseWebSocket):
         return self.environ.get('HTTP_WEBSOCKET_PROTOCOL')
 
 
-
 def _make_websocket(handler, environ):
     # all looks good, lets rock
     if environ['wsgi.websocket_version'] == 'hixie-75':
@@ -235,7 +234,7 @@ def upgrade_connection(handler, environ):
         return [msg]
 
     # This request should have 8 bytes of data in the body
-    key3 = handler.socket.recv(8)
+    key3 = handler.rfile.read(8)
 
     if len(key3) != 8:
         raise exc.WebSocketError('Unexpected EOF while reading key3')
@@ -243,11 +242,11 @@ def upgrade_connection(handler, environ):
     challenge_key = struct.pack("!II", part1, part2) + key3
     challenge = hashlib.md5(challenge_key).digest()
 
-    handler.socket.sendall(challenge)
-
     environ['wsgi.websocket_version'] = 'hixie-76'
 
-    return _make_websocket(handler, environ)
+    _make_websocket(handler, environ)
+
+    handler.write(challenge)
 
 
 def get_key_value(key):
