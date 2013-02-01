@@ -99,6 +99,8 @@ class HandlerTestCase(unittest.TestCase):
         # gevent 0.13.*
         my_handler.response_headers_list = []
         my_handler.result = []
+        my_handler.provided_date = None
+        my_handler.provided_content_length = None
 
         return my_handler
 
@@ -201,10 +203,6 @@ class RunApplicationTestCase(HandlerTestCase):
 
         self.assertIs(environ['wsgi.websocket'], sentinel)
         self.assertIs(handler.websocket, sentinel)
-        self.assertTrue(handler.provided_content_length)
-        self.assertFalse(handler.response_use_chunked)
-        self.assertTrue(handler.close_connection)
-        self.assertTrue(handler.provided_date)
 
         self.assertTrue(handler.application.called)
 
@@ -264,7 +262,7 @@ class RunApplicationTestCase(HandlerTestCase):
             'HTTP_UPGRADE': 'WebSocket',
             'HTTP_CONNECTION': 'Upgrade',
             'wsgi.websocket': sentinel,
-            }
+        }
         handler = self.make_handler(environ)
         handler.prevent_wsgi_call = True
 
@@ -280,12 +278,27 @@ class RunApplicationTestCase(HandlerTestCase):
 
         self.assertIs(environ['wsgi.websocket'], sentinel)
         self.assertIs(handler.websocket, sentinel)
-        self.assertTrue(handler.provided_content_length)
+
+        self.assertFalse(handler.application.called)
+
+    def test_start_websocket_response(self):
+        """
+        Calling `start_response` with a 101 status must set default values on
+        the handler.
+        """
+        environ = {
+            'HTTP_UPGRADE': 'WebSocket',
+            'HTTP_CONNECTION': 'Upgrade'
+        }
+
+        handler = self.make_handler(environ)
+
+        handler.start_response('101 FooBar', [])
+
+        self.assertFalse(handler.provided_content_length)
         self.assertFalse(handler.response_use_chunked)
         self.assertTrue(handler.close_connection)
         self.assertTrue(handler.provided_date)
-
-        self.assertFalse(handler.application.called)
 
     def test_broken_socket(self):
         """

@@ -19,6 +19,9 @@ class MockHandler(object):
         self.status = status
         self.headers = headers
 
+    def write(self, data):
+        self.socket.sendall(data)
+
 
 class FakeFile(object):
     def __init__(self, socket, mode, buffersize):

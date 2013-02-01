@@ -66,15 +66,6 @@ class WebSocketHandler(WSGIHandler):
 
             return
 
-        # So that `finalize_headers` doesn't spit out a Content-Length header
-        self.provided_content_length = True
-        # The websocket is now controlling the response
-        self.response_use_chunked = False
-        # Once the request is over, the connection must be closed
-        self.close_connection = True
-        # Don't write the date in the response
-        self.provided_date = True
-
         if self.status and not self.headers_sent:
             self.write('')
 
@@ -82,6 +73,21 @@ class WebSocketHandler(WSGIHandler):
 
     def _fake_start_response(self, status, headers):
         pass
+
+    def start_response(self, status, headers, exc_info=None):
+        writer = super(WebSocketHandler, self).start_response(
+            status, headers, exc_info=exc_info)
+
+        if self.code == 101:
+            # so that `finalize_headers` doesn't spit out a Content-Length header
+            self.provided_content_length = False
+            # the websocket is now controlling the response
+            self.response_use_chunked = False
+            # once the request is over, the connection must be closed
+            self.close_connection = True
+            self.provided_date = True
+
+        return writer
 
     def upgrade_websocket(self):
         """
