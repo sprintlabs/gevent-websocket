@@ -125,20 +125,24 @@ class BaseWebSocket(WebSocket):
     def receive(self):
         """
         Read and return a message from the stream. If `None` is returned, then
-        the socket is considered closed/errored.
+        the socket is considered stale and should be closed.
         """
         if self.closed:
             return
 
-        try:
-            msg = self.read_message()
-        except error:
-            raise exc.WebSocketError('Socket is dead')
+        while True:
+            try:
+                msg = self.read_message()
+            except error:
+                raise exc.WebSocketError('Socket is dead')
 
-        if not msg:
-            self.close()
+            if msg:
+                return msg
 
-        return msg
+            if msg is None:
+                return
+
+            # empty messages are ignored
 
 
 class WebSocketHixie76(BaseWebSocket):

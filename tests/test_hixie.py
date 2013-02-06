@@ -587,4 +587,4 @@ class ReceiveTestCase(BaseStreamTestCase):
         msg = ws.receive()
 
         self.assertEqual(msg, self.read_message.return_value)
-        self.assertTrue(ws.closed)
+        self.assertFalse(ws.closed)
