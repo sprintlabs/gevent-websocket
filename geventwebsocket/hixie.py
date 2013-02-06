@@ -63,16 +63,8 @@ class BaseWebSocket(WebSocket):
         if self.closed:
             return
 
-        try:
-            # an empty frame is a close frame
-            self.send_frame('')
-        except exc.WebSocketError:
-            # failed to write the closing frame but it's ok because we're
-            # closing the socket anyway.
-            pass
-        finally:
-            self._buffer = None
-            super(BaseWebSocket, self).close()
+        self._buffer = None
+        super(BaseWebSocket, self).close()
 
     def _read_from_buffer(self, size):
         socket_read_size = size - len(self._buffer)
