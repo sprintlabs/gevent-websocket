@@ -69,8 +69,11 @@ def run_autobahn():
         # something went wrong, it's boom time.
         stdout, stderr = wstest.communicate(None)
 
-        print stderr
-        print stdout
+        sys.stderr.write(stderr)
+        sys.stderr.flush()
+
+        sys.stdout.write(stdout)
+        sys.stderr.flush()
 
         raise RuntimeError
 
