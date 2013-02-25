@@ -59,7 +59,6 @@ setup(
     download_url="https://github.com/njoyce/gevent-websocket",
     install_requires=get_install_requires(),
     tests_require=get_tests_requires(),
-    setup_requires=['nose>=1.0'],
     test_suite='nose.collector',
     packages=find_packages(exclude=["examples", "tests"]),
     classifiers=[

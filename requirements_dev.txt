@@ -1,2 +1,3 @@
 # see setup.py#get_tests_requires
+nose>=1.0
 autobahntestsuite>=0.5
