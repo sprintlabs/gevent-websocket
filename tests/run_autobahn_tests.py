@@ -67,8 +67,10 @@ def run_autobahn():
 
     if wstest.wait():
         # something went wrong, it's boom time.
-        print wstest.stderr.read()
-        print wstest.stdout.read()
+        stdout, stderr = wstest.communicate(None)
+
+        print stderr
+        print stdout
 
         raise RuntimeError
 
