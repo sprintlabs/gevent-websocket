@@ -3,6 +3,7 @@ language: python
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq libevent-dev libev-dev
+ - pip install https://bitbucket.org/eriks5/gevent-subprocess/get/tip.tar.gz
 
 python:
   - "2.6"
@@ -11,4 +12,6 @@ python:
 install:
   - python setup.py install
 
-script: python setup.py test
+script:
+  - python setup.py test
+  - python tests/run_autobahn_tests.py
