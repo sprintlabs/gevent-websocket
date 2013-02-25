@@ -11,6 +11,10 @@
    ],
 
    "cases": ["*"],
-   "exclude-cases": ["9.*"],
+   "exclude-cases": [
+       "9.*",
+       "6.21.*",
+       "6.4.*"
+   ],
    "exclude-agent-cases": {}
 }
