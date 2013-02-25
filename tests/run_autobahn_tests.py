@@ -77,6 +77,18 @@ def run_autobahn():
 
         raise RuntimeError
 
+    # parse the generated report to see if we have failures
+    chk = Popen(
+        'fgrep gevent_websocket reports/clients/index.html | grep Fail',
+        stdout=PIPE, shell=True)
+
+    stdout, stderr = chk.communicate(None)
+
+    if stdout:
+        sys.stderr.write('Autobahn test failures:\n' + stdout)
+
+        raise SystemExit(1)
+
 
 def waitany(events, timeout=None):
     from gevent.event import AsyncResult
