@@ -13,7 +13,7 @@ class ProtocolError(WebSocketError):
     """
 
 
-class FrameTooLargeException(WebSocketError):
+class FrameTooLargeException(ProtocolError):
     """
     Raised if a frame is received that is too large.
     """
