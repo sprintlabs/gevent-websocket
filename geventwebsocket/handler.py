@@ -79,7 +79,7 @@ class WebSocketHandler(WSGIHandler):
             status, headers, exc_info=exc_info)
 
         if self.code == 101:
-            # so that `finalize_headers` doesn't spit out a Content-Length header
+            # so that `finalize_headers` doesn't write a Content-Length header
             self.provided_content_length = False
             # the websocket is now controlling the response
             self.response_use_chunked = False
