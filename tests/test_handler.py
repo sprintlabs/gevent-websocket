@@ -288,10 +288,12 @@ class RunApplicationTestCase(HandlerTestCase):
         """
         environ = {
             'HTTP_UPGRADE': 'WebSocket',
-            'HTTP_CONNECTION': 'Upgrade'
+            'HTTP_CONNECTION': 'Upgrade',
+            'wsgi.websocket': object()
         }
 
         handler = self.make_handler(environ)
+        handler.websocket = object()
 
         handler.start_response('101 FooBar', [])
 
@@ -399,12 +401,13 @@ class UpgradeWebsocketTestCase(HandlerTestCase):
 
         environ = {
             'REQUEST_METHOD': 'GET',
-            'HTTP_ORIGIN': '*'
+            'HTTP_ORIGIN': '*',
+            'wsgi.websocket': object()
         }
 
-        with mock.patch.object(hixie, 'upgrade_connection') as upgrade:
+        with mock.patch.object(hixie, 'upgrade_connection'):
             handler = self.make_handler(environ)
-            handler.status = '101 Switching Protocol'
+            handler.websocket = object()
 
             result = handler.upgrade_websocket()
 
