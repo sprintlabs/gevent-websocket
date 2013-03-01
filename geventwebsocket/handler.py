@@ -21,6 +21,8 @@ class WebSocketHandler(WSGIHandler):
     the 'ack' before yielding the control to your WSGI app.
     """
 
+    websocket = None
+
     @property
     def ws_url(self):
         return reconstruct_url(self.environ)
@@ -78,7 +80,7 @@ class WebSocketHandler(WSGIHandler):
         writer = super(WebSocketHandler, self).start_response(
             status, headers, exc_info=exc_info)
 
-        if self.code == 101:
+        if self.websocket:
             # so that `finalize_headers` doesn't write a Content-Length header
             self.provided_content_length = False
             # the websocket is now controlling the response
@@ -115,7 +117,7 @@ class WebSocketHandler(WSGIHandler):
         else:
             return False
 
-        if self.status and not self.status.startswith('101 '):
+        if 'wsgi.websocket' not in self.environ:
             # could not upgrade the connection
             self.result = result or []
 
