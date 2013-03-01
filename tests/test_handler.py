@@ -385,7 +385,7 @@ class UpgradeWebsocketTestCase(HandlerTestCase):
             'HTTP_ORIGIN': '*'
         }
 
-        with mock.patch.object(hixie, 'upgrade_connection') as upgrade:
+        with mock.patch.object(hixie, 'upgrade_connection'):
             handler = self.make_handler(environ)
             handler.status = '400 Bad Request'
 
