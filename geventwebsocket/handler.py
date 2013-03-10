@@ -21,11 +21,13 @@ class WebSocketHandler(WSGIHandler):
     the 'ack' before yielding the control to your WSGI app.
     """
 
-    websocket = None
-
     @property
     def ws_url(self):
         return reconstruct_url(self.environ)
+
+    @property
+    def websocket(self):
+        return self.environ.get('wsgi.websocket', None)
 
     def run_websocket(self):
         """
@@ -59,8 +61,6 @@ class WebSocketHandler(WSGIHandler):
                     self.process_result()
 
                     return
-
-        self.websocket = self.environ.get('wsgi.websocket')
 
         if not self.websocket:
             # no websocket could be created and the connection was not upgraded

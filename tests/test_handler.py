@@ -216,7 +216,6 @@ class RunApplicationTestCase(HandlerTestCase):
         }
         handler = self.make_handler(environ)
 
-        handler.websocket = websocket
         self.executed = False
 
         def my_app(environ, start_response):
@@ -238,8 +237,6 @@ class RunApplicationTestCase(HandlerTestCase):
             'wsgi.websocket': websocket
         }
         handler = self.make_handler(environ)
-
-        handler.websocket = websocket
 
         class MyTestException(Exception):
             pass
@@ -293,7 +290,6 @@ class RunApplicationTestCase(HandlerTestCase):
         }
 
         handler = self.make_handler(environ)
-        handler.websocket = object()
 
         handler.start_response('101 FooBar', [])
 
@@ -407,7 +403,6 @@ class UpgradeWebsocketTestCase(HandlerTestCase):
 
         with mock.patch.object(hixie, 'upgrade_connection'):
             handler = self.make_handler(environ)
-            handler.websocket = object()
 
             result = handler.upgrade_websocket()
 
