@@ -2,15 +2,19 @@
 Test helpers.
 """
 
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
 
 class MockHandler(object):
     """
     A test compatible WSGI handler
     """
 
-    def __init__(self, environ, request_version):
+    def __init__(self, environ):
         self.environ = environ
-        self.request_version = request_version
 
     def log_error(self, msg):
         self.log = msg
@@ -65,3 +69,25 @@ class FakeSocket(object):
 
         return ret
 
+
+class StreamStub(object):
+    def __init__(self, data=None):
+        self.read_stream = StringIO()
+        self.write_stream = StringIO()
+        self.closed = False
+
+        if data:
+            self.read_stream.write(data)
+            self.read_stream.seek(0)
+
+    def read(self, size):
+        return self.read_stream.read(size)
+
+    def write(self, data):
+        self.write_stream.write(data)
+
+    def close(self):
+        self.closed = True
+
+    def tell(self):
+        return self.read_stream.tell()

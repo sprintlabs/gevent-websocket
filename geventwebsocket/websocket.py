@@ -1,7 +1,4 @@
-import functools
-
-
-__all__ = ['WebSocket', 'encode_bytes', 'wrapped_read']
+__all__ = ['WebSocket', 'encode_bytes']
 
 
 class WebSocket(object):
@@ -10,31 +7,26 @@ class WebSocket(object):
 
     :ivar environ: The http environment referenced by this connection.
     :ivar closed: Whether this connection is closed/closing.
-    :ivar _socket: The underlying socket object.
-    :ivar _fobj: The file like object used to read from the connection.
-    :ivar _read: Internal callable that will read from the connection. If an
-        error occurred then this will return an empty string.
-    :ivar _write: Internal callable that will write to the connection.
+    :ivar stream: The underlying file like object that will be read from /
+        written to by this WebSocket object.
     """
 
     __slots__ = (
         'environ',
         'closed',
-        '_socket',
-        '_fobj',
-        '_write',
-        '_read',
+        'stream',
+        'raw_write',
+        'raw_read',
     )
 
-    def __init__(self, socket, environ, rfile):
+    def __init__(self, environ, stream):
         self.environ = environ
         self.closed = False
 
-        self._socket = socket
-        self._fobj = rfile
+        self.stream = stream
 
-        self._write = socket.sendall
-        self._read = wrapped_read(self._fobj)
+        self.raw_write = stream.write
+        self.raw_read = stream.read
 
     def __del__(self):
         """
@@ -56,10 +48,9 @@ class WebSocket(object):
 
         self.closed = True
 
-        self._socket = None
-        self._fobj = None
-        self._write = None
-        self._read = None
+        self.stream = None
+        self.raw_write = None
+        self.raw_read = None
 
         self.environ = None
 
@@ -103,29 +94,3 @@ def encode_bytes(text):
         text = unicode(text or '')
 
     return text.encode('utf-8')
-
-
-def wrapped_read(fobj):
-    """
-    Returns a callable that will return an empty string if reading from the fobj
-    fails for _any_ reason.
-
-    `fobj` in this case is a file like object e.g. `socket.makefile()`
-    """
-    # basic sanity check
-    if not hasattr(fobj, 'read'):
-        raise TypeError('Expected file like object, received %r' % (fobj,))
-
-    read = fobj.read
-
-    if not callable(read):
-        raise TypeError('Expected callable `read` for %r' % (fobj,))
-
-    @functools.wraps(read)
-    def reader(*args):
-        try:
-            return read(*args)
-        except:
-            return ''
-
-    return reader

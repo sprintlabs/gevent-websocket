@@ -9,28 +9,47 @@ from mock import patch
 
 from geventwebsocket import hixie, exceptions as exc
 
-from .util import FakeSocket, MockHandler
+from .util import StreamStub, FakeSocket
 
 
-class UpgradeConnectionHixie75TestCase(unittest.TestCase):
+class BaseConnectionTestCase(unittest.TestCase):
+    def setUp(self):
+        self.status = None
+        self.headers = None
+
+    def start_response(self, status, headers):
+        self.status = status
+        self.headers = headers
+
+    def upgrade_connection(self, environ, stream=None):
+        stream = stream or StreamStub()
+
+        environ.setdefault('wsgi.url_scheme', 'http')
+        environ.setdefault('SERVER_NAME', 'unittest')
+        environ.setdefault('SERVER_PORT', '1010')
+        environ.setdefault('QUERY_STRING', '')
+
+        return hixie.upgrade_connection(environ, self.start_response, stream)
+
+    def assertStatus(self, status):
+        self.assertEqual(self.status, status)
+
+    def assertHeaders(self, headers):
+        try:
+            assert self.status
+
+            self.assertEqual(len(headers), len(self.headers))
+
+            for header in headers:
+                self.assertIn(header, self.headers)
+        except AssertionError:
+            self.assertEqual(headers, self.headers)
+
+
+class UpgradeConnectionHixie75TestCase(BaseConnectionTestCase):
     """
     Tests for `hixie.upgrade_connection` for a hixie-75 websocket.
     """
-
-    def make_handler(self, method='GET', version='HTTP/1.1', environ=None,
-                     socket=None):
-        environ = environ or {}
-        socket = socket or FakeSocket()
-
-        if method:
-            environ['REQUEST_METHOD'] = method
-
-        handler = MockHandler(environ, version)
-        handler.socket = socket
-        handler.rfile = socket.makefile('rb', 0)
-        handler.ws_url = None
-
-        return handler
 
     def test_sanity(self):
         """
@@ -38,9 +57,7 @@ class UpgradeConnectionHixie75TestCase(unittest.TestCase):
         established.
         """
         environ = {}
-        handler = self.make_handler(environ=environ)
-
-        result = hixie.upgrade_connection(handler, environ)
+        result = self.upgrade_connection(environ)
 
         self.assertIsNone(result)
         self.assertEqual('hixie-75', environ['wsgi.websocket_version'])
@@ -49,10 +66,11 @@ class UpgradeConnectionHixie75TestCase(unittest.TestCase):
 
         self.assertIsInstance(ws, hixie.WebSocketHixie75)
         self.assertFalse(ws.closed)
-        self.assertEqual(handler.status, '101 WebSocket Protocol Handshake')
-        self.assertEqual(handler.headers, [
+        self.assertEqual(self.status, '101 WebSocket Protocol Handshake')
+        self.assertEqual(self.headers, [
             ('Upgrade', 'WebSocket'),
-            ('Connection', 'Upgrade')
+            ('Connection', 'Upgrade'),
+            ('WebSocket-Location', 'ws://unittest:1010'),
         ])
 
     def test_protocol(self):
@@ -63,29 +81,28 @@ class UpgradeConnectionHixie75TestCase(unittest.TestCase):
             'HTTP_WEBSOCKET_PROTOCOL': 'foobar'
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.headers, [
+        self.assertIsNone(result)
+        self.assertEqual(self.status, '101 WebSocket Protocol Handshake')
+        self.assertEqual(self.headers, [
             ('Upgrade', 'WebSocket'),
             ('Connection', 'Upgrade'),
+            ('WebSocket-Location', 'ws://unittest:1010'),
             ('WebSocket-Protocol', 'foobar'),
-            ])
+        ])
 
     def test_location(self):
         """
         Ensure that the `WebSocket-Location` header is sent.
         """
-        handler = self.make_handler()
-        handler.ws_url = 'ws://localhost:6666/'
+        result = self.upgrade_connection({})
 
-        hixie.upgrade_connection(handler, {})
-
-        self.assertEqual(handler.headers, [
+        self.assertIsNone(result)
+        self.assertEqual(self.headers, [
             ('Upgrade', 'WebSocket'),
             ('Connection', 'Upgrade'),
-            ('WebSocket-Location', 'ws://localhost:6666/'),
+            ('WebSocket-Location', 'ws://unittest:1010'),
         ])
 
     def test_origin(self):
@@ -95,18 +112,18 @@ class UpgradeConnectionHixie75TestCase(unittest.TestCase):
         environ = {
             'HTTP_ORIGIN': 'foobar'
         }
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.headers, [
+        self.assertIsNone(result)
+        self.assertEqual(self.headers, [
             ('Upgrade', 'WebSocket'),
             ('Connection', 'Upgrade'),
+            ('WebSocket-Location', 'ws://unittest:1010'),
             ('WebSocket-Origin', 'foobar'),
         ])
 
 
-class UpgradeConnectionHixie76TestCase(unittest.TestCase):
+class UpgradeConnectionHixie76TestCase(BaseConnectionTestCase):
     """
     Tests for `hixie.upgrade_connection`.
     """
@@ -115,41 +132,29 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
     # http://tools.ietf.org/html/draft-hixie-thewebsocketprotocol-76 page 8
     key1 = '18x 6]8vM;54 *(5:  {   U1]8  z [  8'
     key2 = '1_ tx7X d  <  nw  334J702) 7]o}` 0'
+    key3 = 'Tm[K T2u'
+    response_md5 = 'fQJ,fN/4F4!~K~MH'
 
-    def make_handler(self, method='GET', version='HTTP/1.1', environ=None,
-                     socket=None):
-        environ = environ or {}
-        socket = socket or FakeSocket()
+    def make_hixie76(self, environ=None, socket=None):
+        if environ is None:
+            environ = {}
 
-        if method:
-            environ['REQUEST_METHOD'] = method
-
-        handler = MockHandler(environ, version)
-        handler.socket = socket
-        handler.rfile = socket.makefile('rb', 0)
-        handler.ws_url = None
-
-        return handler
-
-    def make_hixie76(self):
-        environ = {
+        environ.update({
             'HTTP_SEC_WEBSOCKET_KEY1': self.key1,
             'HTTP_SEC_WEBSOCKET_KEY2': self.key2,
-        }
+        })
 
-        socket = FakeSocket('\x00' * 8)
-        return self.make_handler(environ=environ, socket=socket)
+        socket = socket or StreamStub(self.key3)
+
+        return self.upgrade_connection(environ, socket)
 
     def test_no_keys(self):
         """
         No keys in the client handshake means `hixie-75` version.
-        :return:
         """
         environ = {}
 
-        handler = self.make_handler(environ=environ)
-
-        result = hixie.upgrade_connection(handler, environ)
+        result = self.upgrade_connection(environ)
 
         self.assertIsNone(result)
         self.assertEqual('hixie-75', environ['wsgi.websocket_version'])
@@ -158,24 +163,26 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
 
         self.assertIsInstance(ws, hixie.WebSocketHixie75)
         self.assertFalse(ws.closed)
-        self.assertEqual(handler.status, '101 WebSocket Protocol Handshake')
+        self.assertStatus('101 WebSocket Protocol Handshake')
+        self.assertHeaders([
+            ('Upgrade', 'WebSocket'),
+            ('Connection', 'Upgrade'),
+            ('WebSocket-Location', 'ws://unittest:1010'),
+        ])
 
     def test_empty_key1(self):
         """
         An existing (but empty) Sec-Websocket-Key1 must result in a 400.
-        :return:
         """
         environ = {
             'HTTP_SEC_WEBSOCKET_KEY1': ''
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        result = hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.status, '400 Bad Request')
+        self.assertStatus('400 Bad Request')
         self.assertEqual(result, ['400: Sec-WebSocket-Key1 header is empty'])
-        self.assertEqual(handler.headers, [])
+        self.assertHeaders([])
 
     def test_missing_key2(self):
         """
@@ -185,14 +192,14 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY1': 'foobar'
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        result = hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.status, '400 Bad Request')
-        self.assertEqual(result,
-                         ['400: Sec-WebSocket-Key2 header is missing/empty'])
-        self.assertEqual(handler.headers, [])
+        self.assertStatus('400 Bad Request')
+        self.assertEqual(
+            result,
+            ['400: Sec-WebSocket-Key2 header is missing/empty']
+        )
+        self.assertHeaders([])
 
     def test_empty_key2(self):
         """
@@ -203,14 +210,14 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY2': '',
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        result = hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.status, '400 Bad Request')
-        self.assertEqual(result,
-                         ['400: Sec-WebSocket-Key2 header is missing/empty'])
-        self.assertEqual(handler.headers, [])
+        self.assertStatus('400 Bad Request')
+        self.assertHeaders([])
+        self.assertEqual(
+            result,
+            ['400: Sec-WebSocket-Key2 header is missing/empty']
+        )
 
     def test_invalid_key1(self):
         """
@@ -221,13 +228,11 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY2': 'bar',
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        result = hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.status, '400 Bad Request')
+        self.assertStatus('400 Bad Request')
         self.assertEqual(result, ['Invalid value for key'])
-        self.assertEqual(handler.headers, [])
+        self.assertHeaders([])
 
     def test_invalid_key2(self):
         """
@@ -238,13 +243,11 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY2': 'bar',
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        result = hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.status, '400 Bad Request')
+        self.assertStatus('400 Bad Request')
         self.assertEqual(result, ['Invalid value for key'])
-        self.assertEqual(handler.headers, [])
+        self.assertHeaders([])
 
     def test_missing_key3(self):
         """
@@ -256,10 +259,8 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY2': self.key2,
         }
 
-        handler = self.make_handler(environ=environ)
-
         with self.assertRaises(exc.WebSocketError) as ctx:
-            hixie.upgrade_connection(handler, environ)
+            self.upgrade_connection(environ)
 
         self.assertEqual(
             unicode(ctx.exception),
@@ -272,49 +273,42 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
         """
         Basic sanity check for creating a hixie-76 websocket.
         """
-        environ = {
-            'HTTP_SEC_WEBSOCKET_KEY1': self.key1,
-            'HTTP_SEC_WEBSOCKET_KEY2': self.key2,
-        }
-
-        socket = FakeSocket('\x00' * 8)
-        handler = self.make_handler(environ=environ, socket=socket)
-
-        result = hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(
-            socket.data[10:],
-            '{\xf8\x0b\xfe\x83,"\x9e}\x1b\xda0\xb2)'
-        )
+        socket = StreamStub(self.key3)
+        environ = {}
+        result = self.make_hixie76(environ, socket)
 
         self.assertIsNone(result)
-        self.assertEqual(handler.status, '101 WebSocket Protocol Handshake')
+        self.assertStatus('101 WebSocket Protocol Handshake')
         self.assertEqual('hixie-76', environ['wsgi.websocket_version'])
+        self.assertHeaders([
+            ('Upgrade', 'WebSocket'),
+            ('Connection', 'Upgrade'),
+            ('Sec-WebSocket-Location', 'ws://unittest:1010'),
+        ])
+
+        self.assertEqual(
+            socket.write_stream.getvalue(),
+            self.response_md5
+        )
 
         ws = environ['wsgi.websocket']
 
         self.assertIsInstance(ws, hixie.WebSocketHixie76)
         self.assertFalse(ws.closed)
-        self.assertEqual(handler.headers, [
-            ('Upgrade', 'WebSocket'),
-            ('Connection', 'Upgrade')
-        ])
 
     def test_protocol(self):
         """
         Ensure that the `Sec-WebSocket-Protocol` header is echoed back.
         """
-        handler = self.make_hixie76()
         environ = {
             'HTTP_SEC_WEBSOCKET_PROTOCOL': 'foobar'
         }
+        self.make_hixie76(environ)
 
-        environ.update(handler.environ)
-        hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.headers, [
+        self.assertHeaders([
             ('Upgrade', 'WebSocket'),
             ('Connection', 'Upgrade'),
+            ('Sec-WebSocket-Location', 'ws://unittest:1010'),
             ('Sec-WebSocket-Protocol', 'foobar'),
         ])
 
@@ -322,32 +316,28 @@ class UpgradeConnectionHixie76TestCase(unittest.TestCase):
         """
         Ensure that the `Sec-WebSocket-Location` header is sent.
         """
-        handler = self.make_hixie76()
-        handler.ws_url = 'ws://localhost:6666/'
-
-        hixie.upgrade_connection(handler, handler.environ)
-
-        self.assertEqual(handler.headers, [
+        self.make_hixie76()
+        self.assertHeaders([
             ('Upgrade', 'WebSocket'),
             ('Connection', 'Upgrade'),
-            ('Sec-WebSocket-Location', 'ws://localhost:6666/'),
+            ('Sec-WebSocket-Location', 'ws://unittest:1010'),
         ])
 
     def test_origin(self):
         """
         Ensure that the `Sec-WebSocket-Origin` header is sent.
         """
-        handler = self.make_hixie76()
         environ = {
             'HTTP_ORIGIN': 'foobar'
         }
+        result = self.make_hixie76(environ)
 
-        environ.update(handler.environ)
-        hixie.upgrade_connection(handler, environ)
-
-        self.assertEqual(handler.headers, [
+        self.assertIsNone(result)
+        self.assertStatus('101 WebSocket Protocol Handshake')
+        self.assertHeaders([
             ('Upgrade', 'WebSocket'),
             ('Connection', 'Upgrade'),
+            ('Sec-WebSocket-Location', 'ws://unittest:1010'),
             ('Sec-WebSocket-Origin', 'foobar'),
         ])
 
@@ -357,10 +347,10 @@ class BaseStreamTestCase(unittest.TestCase):
         return FakeSocket(data)
 
     def make_websocket(self, socket=None, environ=None):
-        socket = socket or FakeSocket()
+        socket = socket or StreamStub()
         environ = environ or {}
 
-        return hixie.BaseWebSocket(socket, environ, socket.makefile('rb', 0))
+        return hixie.BaseWebSocket(environ, socket)
 
 
 class SendTestCase(BaseStreamTestCase):
@@ -372,7 +362,7 @@ class SendTestCase(BaseStreamTestCase):
         """
         Ensure that sending unicode works correctly
         """
-        socket = FakeSocket()
+        socket = StreamStub()
         ws = self.make_websocket(socket)
 
         text = u'ƒøø'
@@ -380,8 +370,8 @@ class SendTestCase(BaseStreamTestCase):
 
         self.assertEqual(
             '\x00' + text.encode('utf-8') + '\xff',
-            socket.data,
-            )
+            socket.write_stream.getvalue(),
+        )
 
     def test_send_empty(self):
         """
@@ -399,17 +389,17 @@ class SendTestCase(BaseStreamTestCase):
         Attempting to send binary data should NOT close the websocket and raise
         the exception.
         """
-        socket = FakeSocket()
+        socket = StreamStub()
         ws = self.make_websocket(socket)
 
         blob = '\xff'
 
-        with self.assertRaises(UnicodeDecodeError) as ctx:
+        with self.assertRaises(UnicodeDecodeError):
             ws.send(blob)
 
         self.assertFalse(ws.closed)
 
-    @patch.object(FakeSocket, 'sendall')
+    @patch.object(StreamStub, 'write')
     def test_broken_socket(self, sendall):
         """
         Any attempt to write to this socket will result in an error. A
@@ -424,7 +414,7 @@ class SendTestCase(BaseStreamTestCase):
         self.assertRaises(exc.WebSocketError, ws.send, 'foobar')
         self.assertFalse(ws.closed)
 
-    @patch.object(FakeSocket, 'sendall')
+    @patch.object(StreamStub, 'write')
     def test_random_exception(self, sendall):
         """
         Any random exception when attempting to send a payload must NOT result
@@ -471,8 +461,7 @@ class MessageReadingTestCase(BaseStreamTestCase):
         for payload in args:
             data += '\x00' + payload.encode('utf-8') + '\xff'
 
-        socket = self.make_socket(data)
-        ws = hixie.BaseWebSocket(socket, {}, socket.makefile('rb', 0))
+        ws = hixie.BaseWebSocket({}, StreamStub(data))
 
         return ws
 
@@ -528,8 +517,8 @@ class MessageReadingTestCase(BaseStreamTestCase):
         A frame type != 0x00 should result in an error.
         """
         for frame_type in xrange(0x01, 0xff):
-            socket = self.make_socket(chr(frame_type))
-            ws = hixie.BaseWebSocket(socket, {}, socket.makefile('rb', 0))
+            socket = StreamStub(chr(frame_type))
+            ws = hixie.BaseWebSocket({}, socket)
 
             with self.assertRaises(exc.ProtocolError) as ctx:
                 ws.read_message()

@@ -14,7 +14,7 @@ except ImportError:
 
 from geventwebsocket import hybi, exceptions as exc
 
-from .util import FakeSocket, MockHandler
+from .util import StreamStub
 
 
 class UpgradeConnectionTestCase(unittest.TestCase):
@@ -22,42 +22,57 @@ class UpgradeConnectionTestCase(unittest.TestCase):
     Tests for `hybi.upgrade_connection`.
     """
 
-    def make_handler(self, method='GET', version='HTTP/1.1', environ=None,
-                     socket=None):
-        environ = environ or {}
-        socket = socket or FakeSocket()
+    def setUp(self):
+        self.status = None
+        self.headers = None
 
-        if method:
-            environ['REQUEST_METHOD'] = method
+    def start_response(self, status, headers):
+        self.status = status
+        self.headers = headers
 
-        handler = MockHandler(environ, version)
-        handler.socket = socket
-        handler.rfile = socket.makefile('rb', 0)
+    def upgrade_connection(self, environ, stream=None):
+        stream = stream or StreamStub()
 
-        return handler
+        environ.setdefault('wsgi.url_scheme', 'http')
+        environ.setdefault('SERVER_NAME', 'unittest')
+        environ.setdefault('SERVER_PORT', '1010')
+        environ.setdefault('QUERY_STRING', '')
+
+        return hybi.upgrade_connection(environ, self.start_response, stream)
+
+    def assertStatus(self, status):
+        self.assertEqual(self.status, status)
+
+    def assertHeaders(self, headers):
+        try:
+            assert self.status
+
+            self.assertEqual(len(headers), len(self.headers))
+
+            for header in headers:
+                self.assertIn(header, self.headers)
+        except AssertionError:
+            self.assertEqual(headers, self.headers)
 
     def test_basic_sanity_check(self):
         """
-        Given the example in the docs (Section 1.3), ensure a basic sanity check
+        Given the example in the docs (Section 1.3), ensure a basic sanity
+        check
         """
         environ = {
             'HTTP_SEC_WEBSOCKET_KEY': 'dGhlIHNhbXBsZSBub25jZQ==',
             'HTTP_SEC_WEBSOCKET_VERSION': '13'
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ=environ)
 
-        response = hybi.upgrade_connection(handler, environ)
-
-        expected_headers = [
+        self.assertIsNone(result)
+        self.assertStatus('101 Switching Protocols')
+        self.assertHeaders([
             ('Upgrade', 'websocket'),
             ('Connection', 'Upgrade'),
             ('Sec-WebSocket-Accept', 's3pPLMBiTxaQ9kYGzzhZRbK+xOo=')
-        ]
-
-        self.assertEqual(handler.status, '101 Switching Protocols')
-        self.assertIsNone(response)
-        self.assertEqual(expected_headers, handler.headers)
+        ])
 
         # ensure that the environ dict has been appropriately updated
         ws = environ['wsgi.websocket']
@@ -65,6 +80,7 @@ class UpgradeConnectionTestCase(unittest.TestCase):
 
         self.assertEqual(version, 'hybi-13')
         self.assertIsInstance(ws, hybi.WebSocket)
+        self.assertFalse(ws.closed)
 
     def test_invalid_version(self):
         """
@@ -74,17 +90,13 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_VERSION': 'foobar'
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        response = hybi.upgrade_connection(handler, environ)
-
-        expected_headers = [
-            ('Sec-WebSocket-Version', '13, 8, 7')
-        ]
-
-        self.assertEqual('400 Bad Request', handler.status)
-        self.assertEqual(expected_headers, handler.headers)
-        self.assertEqual(response, ["Unsupported WebSocket Version: 'foobar'"])
+        self.assertStatus('400 Bad Request')
+        self.assertEqual(result, ["Unsupported WebSocket Version: 'foobar'"])
+        self.assertHeaders([
+            ('Sec-WebSocket-Version', '13, 8, 7'),
+        ])
 
     def test_missing_key(self):
         """
@@ -94,16 +106,11 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_VERSION': '13',
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        response = hybi.upgrade_connection(handler, environ)
-
-        self.assertEqual('400 Bad Request', handler.status)
-        self.assertEqual([], handler.headers)
-        self.assertEqual(
-            response,
-            ['Sec-WebSocket-Key header is missing/empty']
-        )
+        self.assertStatus('400 Bad Request')
+        self.assertHeaders([])
+        self.assertEqual(result, ['Sec-WebSocket-Key header is missing/empty'])
 
     def test_empty_key(self):
         """
@@ -114,14 +121,12 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY': '',
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        response = hybi.upgrade_connection(handler, environ)
-
-        self.assertEqual('400 Bad Request', handler.status)
-        self.assertEqual([], handler.headers)
+        self.assertStatus('400 Bad Request')
+        self.assertHeaders([])
         self.assertEqual(
-            response,
+            result,
             ['Sec-WebSocket-Key header is missing/empty']
         )
 
@@ -139,13 +144,11 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY': key,
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        response = hybi.upgrade_connection(handler, environ)
-
-        self.assertEqual('400 Bad Request', handler.status)
-        self.assertEqual([], handler.headers)
-        self.assertEqual(response, ["Invalid key: 'A=='"])
+        self.assertStatus('400 Bad Request')
+        self.assertHeaders([])
+        self.assertEqual(result, ["Invalid key: 'A=='"])
 
     def test_invalid_key_length(self):
         """
@@ -159,13 +162,11 @@ class UpgradeConnectionTestCase(unittest.TestCase):
             'HTTP_SEC_WEBSOCKET_KEY': base64.b64encode(key),
         }
 
-        handler = self.make_handler(environ=environ)
+        result = self.upgrade_connection(environ)
 
-        response = hybi.upgrade_connection(handler, environ)
-
-        self.assertEqual('400 Bad Request', handler.status)
-        self.assertEqual([], handler.headers)
-        self.assertEqual(response, ["Invalid key: 'YWFhYWFhYWFhYWFhYWFhYWE='"])
+        self.assertStatus('400 Bad Request')
+        self.assertHeaders([])
+        self.assertEqual(result, ["Invalid key: 'YWFhYWFhYWFhYWFhYWFhYWE='"])
 
 
 class DecodeHeaderTestCase(unittest.TestCase):
@@ -202,7 +203,8 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
     def test_control_frame_fragmentation(self):
         """
-        Page 36 of the spec specifies that control frames must not be fragmented
+        Page 36 of the spec specifies that control frames must not be
+        fragmented
         """
         byte = chr(hybi.OPCODE_CLOSE)
 
@@ -216,8 +218,8 @@ class DecodeHeaderTestCase(unittest.TestCase):
 
     def test_control_frame_size(self):
         """
-        Page 37 of the spec specifies that control frames must not have a length
-        of greater that 125.
+        Page 37 of the spec specifies that control frames must not have a
+        length of greater that 125.
         """
         byte = chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(0x7f)
 
@@ -259,7 +261,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
         # check the mask
         data = StringIO(
             chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(hybi.MASK_MASK) +
-            'abcd' # this is the mask data
+            'abcd'  # this is the mask data
         )
         header = hybi.decode_header(data)
 
@@ -348,7 +350,7 @@ class DecodeHeaderTestCase(unittest.TestCase):
         # check the mask
         data = StringIO(
             chr(hybi.FIN_MASK | hybi.OPCODE_CLOSE) + chr(hybi.MASK_MASK) +
-            'abc' # this is the mask data
+            'abc'  # this is the mask data
         )
 
         with self.assertRaises(exc.WebSocketError) as ctx:
@@ -391,7 +393,7 @@ class EncodeHeaderTestCase(unittest.TestCase):
         header = '\x00\x00'
 
         self.assertEqual(header, hybi.encode_header(
-            False, # fin
+            False,  # fin
             0,     # opcode
             '',    # mask
             0,     # length
@@ -405,7 +407,7 @@ class EncodeHeaderTestCase(unittest.TestCase):
         header = '\x40\x00'
 
         self.assertEqual(header, hybi.encode_header(
-            False, # fin
+            False,  # fin
             0,     # opcode
             '',    # mask
             0,     # length
@@ -419,7 +421,7 @@ class EncodeHeaderTestCase(unittest.TestCase):
         header = '\x20\x00'
 
         self.assertEqual(header, hybi.encode_header(
-            False, # fin
+            False,  # fin
             0,     # opcode
             '',    # mask
             0,     # length
@@ -433,7 +435,7 @@ class EncodeHeaderTestCase(unittest.TestCase):
         header = '\x10\x00'
 
         self.assertEqual(header, hybi.encode_header(
-            False, # fin
+            False,  # fin
             0,     # opcode
             '',    # mask
             0,     # length
@@ -447,11 +449,11 @@ class EncodeHeaderTestCase(unittest.TestCase):
         header = '\x00\x80foo'
 
         self.assertEqual(header, hybi.encode_header(
-            False, # fin
-            0,     # opcode
-            'foo', # mask
-            0,     # length
-            0      # flags
+            False,  # fin
+            0,      # opcode
+            'foo',  # mask
+            0,      # length
+            0       # flags
         ))
 
     def test_length_lt_126(self):
@@ -460,19 +462,19 @@ class EncodeHeaderTestCase(unittest.TestCase):
         """
         for i in xrange(0, 126):
             self.assertEqual('\x00' + chr(i), hybi.encode_header(
-                False, # fin
-                0,     # opcode
-                '',    # mask
-                i,     # length
-                0      # flags
+                False,  # fin
+                0,      # opcode
+                '',     # mask
+                i,      # length
+                0       # flags
             ))
 
         self.assertNotEqual('\x00' + chr(126), hybi.encode_header(
-            False, # fin
-            0,     # opcode
-            '',    # mask
-            126,   # length
-            0      # flags
+            False,  # fin
+            0,      # opcode
+            '',     # mask
+            126,    # length
+            0       # flags
         ))
 
     def test_length_lte_0xffff(self):
@@ -507,13 +509,15 @@ class EncodeHeaderTestCase(unittest.TestCase):
 
 class BaseStreamTestCase(unittest.TestCase):
     def make_socket(self, data):
-        return FakeSocket(data)
+        return StreamStub(data)
 
     def make_websocket(self, socket=None, environ=None):
-        socket = socket or FakeSocket()
-        environ = environ or {}
+        socket = socket or StreamStub()
 
-        return hybi.WebSocketHybi(socket, environ, socket.makefile('rb', 0))
+        if environ is None:
+            environ = {}
+
+        return hybi.WebSocketHybi(environ, socket)
 
 
 class FrameReadingTestCase(BaseStreamTestCase):
@@ -612,7 +616,7 @@ class MessageReadingTestCase(BaseStreamTestCase):
             data += payload
 
         socket = self.make_socket(data)
-        ws = hybi.WebSocketHybi(socket, {}, socket.makefile('rb', 0))
+        ws = hybi.WebSocketHybi({}, socket)
 
         return ws
 
@@ -794,7 +798,8 @@ class CloseFrameTestCase(BaseStreamTestCase):
     @patch.object(hybi.WebSocketHybi, 'send_frame')
     def test_no_payload(self, send_frame):
         """
-        When there is no payload, ensure that `hybi.ConnectionClosed` is raised.
+        When there is no payload, ensure that `hybi.ConnectionClosed` is
+        raised.
         """
         ws = self.make_websocket()
         self.assertFalse(ws.closed)
@@ -842,10 +847,9 @@ class CloseTestCase(BaseStreamTestCase):
     def assertClosed(self, ws):
         self.assertTrue(ws.closed)
         self.assertIsNone(ws.environ)
-        self.assertIsNone(ws._socket)
-        self.assertIsNone(ws._fobj)
-        self.assertIsNone(ws._read)
-        self.assertIsNone(ws._write)
+        self.assertIsNone(ws.stream)
+        self.assertIsNone(ws.raw_write)
+        self.assertIsNone(ws.raw_read)
 
     def test_state(self):
         """
@@ -912,8 +916,9 @@ class CloseTestCase(BaseStreamTestCase):
     @patch.object(hybi.WebSocketHybi, 'send_frame')
     def test_socket_error_when_sending_frame(self, send_frame):
         """
-        When calling `close`, the socket may be dead and `send_frame` will raise
-        a `exc.WebSocketError`. Ensure that this exception is not propagated.
+        When calling `close`, the socket may be dead and `send_frame` will
+        raise a `exc.WebSocketError`. Ensure that this exception is not
+        propagated.
         """
         send_frame.side_effect = exc.WebSocketError
 
@@ -935,7 +940,7 @@ class ReceiveTestCase(BaseStreamTestCase):
         """
         from socket import error
 
-        class BrokenSocket(FakeSocket):
+        class BrokenSocket(StreamStub):
             def read(self, size):
                 # any reads from the socket will result in an error.
                 raise error
@@ -943,7 +948,7 @@ class ReceiveTestCase(BaseStreamTestCase):
         with patch.object(hybi.WebSocketHybi, 'close') as mock:
             ws = self.make_websocket(BrokenSocket())
 
-            self.assertRaises(error, ws._socket.read, 1)
+            self.assertRaises(error, ws.raw_read, 1)
             self.assertRaises(exc.WebSocketError, ws.receive)
 
             self.assertFalse(mock.close.called)
@@ -1004,6 +1009,7 @@ class ReceiveTestCase(BaseStreamTestCase):
         self.assertIsNone(msg)
         self.assertFalse(read_message.called)
 
+
 class SendTestCase(BaseStreamTestCase):
     """
     Tests for `hybi.WebSocketHybi.send`.
@@ -1013,7 +1019,7 @@ class SendTestCase(BaseStreamTestCase):
         """
         Ensure that sending unicode works correctly
         """
-        socket = FakeSocket()
+        socket = StreamStub()
         ws = self.make_websocket(socket)
 
         text = u'ƒøø'
@@ -1021,14 +1027,14 @@ class SendTestCase(BaseStreamTestCase):
 
         self.assertEqual(
             '\x81\x06' + text.encode('utf-8'),
-            socket.data,
+            socket.write_stream.getvalue(),
         )
 
     def test_default(self):
         """
         Ensure that the default for sending data is utf-8 encoded.
         """
-        socket = FakeSocket()
+        socket = StreamStub()
         ws = self.make_websocket(socket)
 
         text = u'ƒøø'
@@ -1037,14 +1043,14 @@ class SendTestCase(BaseStreamTestCase):
 
         self.assertEqual(
             '\x81\x06' + text.encode('utf-8'),
-            socket.data,
+            socket.write_stream.getvalue(),
         )
 
     def test_binary(self):
         """
         Ensure that sending binary works correctly
         """
-        socket = FakeSocket()
+        socket = StreamStub()
         ws = self.make_websocket(socket)
 
         blob = '\x00' * 10
@@ -1052,10 +1058,10 @@ class SendTestCase(BaseStreamTestCase):
 
         self.assertEqual(
             '\x82\x0a' + blob,
-            socket.data,
+            socket.write_stream.getvalue(),
         )
 
-    @patch.object(FakeSocket, 'sendall')
+    @patch.object(StreamStub, 'write')
     def test_broken_socket(self, sendall):
         """
         Any attempt to write to this socket will result in an error. The
@@ -1070,7 +1076,7 @@ class SendTestCase(BaseStreamTestCase):
         self.assertRaises(exc.WebSocketError, ws.send, 'foobar')
         self.assertFalse(ws.closed)
 
-    @patch.object(FakeSocket, 'sendall')
+    @patch.object(StreamStub, 'write')
     def test_random_exception(self, sendall):
         """
         Any random exception when attempting to send a payload must NOT result

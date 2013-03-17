@@ -129,7 +129,7 @@ class WebSocketHybi(WebSocket):
 
         :return: The header and payload as a tuple.
         """
-        header = decode_header(self._fobj)
+        header = decode_header(self.stream)
 
         if header.flags:
             raise exc.ProtocolError
@@ -137,7 +137,13 @@ class WebSocketHybi(WebSocket):
         if not header.length:
             return header, ''
 
-        payload = self._read(header.length)
+        try:
+            payload = self.raw_read(header.length)
+        except error:
+            payload = ''
+        except Exception:
+            # TODO log out this exception
+            payload = ''
 
         if len(payload) != header.length:
             raise exc.WebSocketError('Unexpected EOF reading frame payload')
@@ -232,7 +238,7 @@ class WebSocketHybi(WebSocket):
         header = encode_header(True, opcode, '', len(message), 0)
 
         try:
-            self._write(header + message)
+            self.raw_write(header + message)
         except error:
             raise exc.WebSocketError('Socket is dead')
 
@@ -405,7 +411,7 @@ def encode_header(fin, opcode, mask, length, flags):
     return chr(first_byte) + chr(second_byte) + extra
 
 
-def upgrade_connection(handler, environ):
+def upgrade_connection(environ, start_response, stream):
     """
     Validate and 'upgrade' the HTTP request to a WebSocket request.
 
@@ -413,8 +419,10 @@ def upgrade_connection(handler, environ):
     status of `101`, the environ will also be updated with `wsgi.websocket` and
     `wsgi.websocket_version` keys.
 
-    :param handler: The WSGI handler providing the HTTP request context.
-    :param environ: The HTTP environ dict.
+    :param environ: The WSGI environ dict.
+    :param start_response: The callable used to start the response.
+    :param stream: File like object that will be read from/written to by the
+        underlying WebSocket object, if created.
     :return: The WSGI response iterator is something went awry.
     """
     version = environ.get("HTTP_SEC_WEBSOCKET_VERSION")
@@ -422,7 +430,7 @@ def upgrade_connection(handler, environ):
     if version not in SUPPORTED_VERSIONS:
         msg = 'Unsupported WebSocket Version: %r' % (version,)
 
-        handler.start_response('400 Bad Request', [
+        start_response('400 Bad Request', [
             ('Sec-WebSocket-Version', '13, 8, 7')
         ])
 
@@ -434,7 +442,7 @@ def upgrade_connection(handler, environ):
         # 5.2.1 (3)
         msg = 'Sec-WebSocket-Key header is missing/empty'
 
-        handler.start_response('400 Bad Request', [])
+        start_response('400 Bad Request', [])
 
         return [msg]
 
@@ -443,7 +451,7 @@ def upgrade_connection(handler, environ):
     except TypeError:
         msg = 'Invalid key: %r' % (key,)
 
-        handler.start_response('400 Bad Request', [])
+        start_response('400 Bad Request', [])
 
         return [msg]
 
@@ -451,17 +459,15 @@ def upgrade_connection(handler, environ):
         # 5.2.1 (3)
         msg = 'Invalid key: %r' % (key,)
 
-        handler.start_response('400 Bad Request', [])
+        start_response('400 Bad Request', [])
 
         return [msg]
 
+    ws = WebSocketHybi(environ, stream)
+
     environ.update({
-        'wsgi.websocket': WebSocketHybi(
-            handler.socket,
-            environ,
-            handler.rfile
-        ),
-        'wsgi.websocket_version': 'hybi-%s' % version
+        'wsgi.websocket_version': 'hybi-%s' % version,
+        'wsgi.websocket': ws
     })
 
     headers = [
@@ -471,4 +477,4 @@ def upgrade_connection(handler, environ):
             hashlib.sha1(key + GUID).digest())),
     ]
 
-    handler.start_response("101 Switching Protocols", headers)
+    start_response("101 Switching Protocols", headers)

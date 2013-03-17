@@ -1,9 +1,6 @@
-import urlparse
-
 from gevent.pywsgi import WSGIHandler
 
-from . import hybi
-from . import hixie
+from . import wsgi
 
 
 class WebSocketHandler(WSGIHandler):
@@ -20,10 +17,6 @@ class WebSocketHandler(WSGIHandler):
     negotiations to this library.  Socket.IO needs this for example, to send
     the 'ack' before yielding the control to your WSGI app.
     """
-
-    @property
-    def ws_url(self):
-        return reconstruct_url(self.environ)
 
     @property
     def websocket(self):
@@ -43,6 +36,17 @@ class WebSocketHandler(WSGIHandler):
         finally:
             self.websocket.close()
 
+    def get_environ(self):
+        """
+        There is a bug where the SERVER_PROTOCOL does not get set correctly.
+        """
+        env = super(WebSocketHandler, self).get_environ()
+
+        if env.get('SERVER_PROTOCOL', '') != self.request_version:
+            env['SERVER_PROTOCOL'] = self.request_version
+
+        return env
+
     def run_application(self):
         """
         Attempt to create a websocket. If the request is not a WebSocket
@@ -50,23 +54,26 @@ class WebSocketHandler(WSGIHandler):
 
         You probably don't want to override this function, see `run_websocket`.
         """
-        upgrade = self.environ.get('HTTP_UPGRADE', '').lower()
-
-        if upgrade == 'websocket':
-            connection = self.environ.get('HTTP_CONNECTION', '').lower()
-
-            if connection == 'upgrade':
-                if not self.upgrade_websocket() and hasattr(self, 'status'):
-                    # the request was handled, probably with an error status
-                    self.process_result()
-
-                    return
+        self.result = wsgi.upgrade_websocket(
+            self.environ,
+            self.start_response,
+            Stream(self)
+        )
 
         if not self.websocket:
-            # no websocket could be created and the connection was not upgraded
-            super(WebSocketHandler, self).run_application()
+            # a websocket connection was not established
+            if self.status:
+                # A status was set, likely an error so just send the response
+                if not self.result:
+                    self.result = []
 
-            return
+                self.process_result()
+
+                return
+
+            # this handler did not handle the request, so defer it to the
+            # underlying application object
+            return super(WebSocketHandler, self).run_application()
 
         if self.status and not self.headers_sent:
             self.write('')
@@ -77,8 +84,14 @@ class WebSocketHandler(WSGIHandler):
         pass
 
     def start_response(self, status, headers, exc_info=None):
+        """
+        Called when the handler is ready to send a response back to the remote
+        endpoint. A websocket connection may have not been created.
+        """
         writer = super(WebSocketHandler, self).start_response(
             status, headers, exc_info=exc_info)
+
+        assert not self.headers_sent
 
         if self.websocket:
             # so that `finalize_headers` doesn't write a Content-Length header
@@ -87,89 +100,25 @@ class WebSocketHandler(WSGIHandler):
             self.response_use_chunked = False
             # once the request is over, the connection must be closed
             self.close_connection = True
+            # prevents the Date header from being written
             self.provided_date = True
 
         return writer
 
-    def upgrade_websocket(self):
-        """
-        Attempt to upgrade the current environ into a websocket enabled
-        connection. If successful, the environ dict with be updated with two
-        new entries, `wsgi.websocket` and `wsgi.websocket_version`.
 
-        :returns: Whether the upgrade was successful.
-        """
-        # some basic sanity checks first
-        if self.environ.get("REQUEST_METHOD") != "GET":
-            self.start_response('400 Bad Request', [])
-
-            return False
-
-        if self.request_version != 'HTTP/1.1':
-            self.start_response('400 Bad Request', [])
-
-            return False
-
-        if self.environ.get('HTTP_SEC_WEBSOCKET_VERSION'):
-            result = hybi.upgrade_connection(self, self.environ)
-        elif self.environ.get('HTTP_ORIGIN'):
-            result = hixie.upgrade_connection(self, self.environ)
-        else:
-            return False
-
-        if 'wsgi.websocket' not in self.environ:
-            # could not upgrade the connection
-            self.result = result or []
-
-            return False
-
-        return True
-
-
-def reconstruct_url(environ):
+class Stream(object):
     """
-    Build a WebSocket url based on the supplied environ dict.
-
-    Will return a url of the form:
-
-        ws://host:port/path?query
+    Wraps the handler's socket/rfile attributes and makes it in to a file like
+    object that can be read from/written to by the lower level websocket api.
     """
-    secure = environ['wsgi.url_scheme'].lower() == 'https'
 
-    if secure:
-        scheme = 'wss'
-    else:
-        scheme = 'ws'
+    __slots__ = (
+        'handler',
+        'read',
+        'write'
+    )
 
-    host = environ.get('HTTP_HOST', None)
-
-    if not host:
-        host = environ['SERVER_NAME']
-
-    port = None
-    server_port = environ['SERVER_PORT']
-
-    if secure:
-        if server_port != '443':
-            port = server_port
-    else:
-        if server_port != '80':
-            port = server_port
-
-    netloc = host
-
-    if port:
-        netloc = host + ':' + port
-
-    path = environ.get('SCRIPT_NAME', '') + environ.get('PATH_INFO', '')
-
-    query = environ['QUERY_STRING']
-
-    return urlparse.urlunparse((
-        scheme,
-        netloc,
-        path,
-        '',  # params
-        query,
-        '',  # fragment
-    ))
+    def __init__(self, handler):
+        self.handler = handler
+        self.read = handler.rfile.read
+        self.write = handler.socket.sendall

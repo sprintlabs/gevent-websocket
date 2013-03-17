@@ -4,6 +4,7 @@ import hashlib
 from socket import error
 
 from . import exceptions as exc
+from . import wsgi
 from .websocket import WebSocket
 
 
@@ -23,8 +24,8 @@ class BaseWebSocket(WebSocket):
         '_buffer',
     )
 
-    def __init__(self, socket, environ, rfile):
-        super(BaseWebSocket, self).__init__(socket, environ, rfile)
+    def __init__(self, environ, stream):
+        super(BaseWebSocket, self).__init__(environ, stream)
 
         self._buffer = ''
 
@@ -38,7 +39,7 @@ class BaseWebSocket(WebSocket):
         :param data: A utf-8 encoded bytestring.
         """
         try:
-            self._write('\x00' + data + '\xff')
+            self.raw_write('\x00' + data + '\xff')
         except error:
             raise exc.WebSocketError('Socket is dead')
 
@@ -64,15 +65,16 @@ class BaseWebSocket(WebSocket):
             return
 
         self._buffer = None
+
         super(BaseWebSocket, self).close()
 
     def _read_from_buffer(self, size):
-        socket_read_size = size - len(self._buffer)
+        read_size = size - len(self._buffer)
 
         data = self._buffer[:size]
 
-        if socket_read_size:
-            data += self._read(socket_read_size)
+        if read_size:
+            data += self.raw_read(read_size)
 
         self._buffer = self._buffer[size:]
 
@@ -160,12 +162,12 @@ class WebSocketHixie75(BaseWebSocket):
         return self.environ.get('HTTP_WEBSOCKET_PROTOCOL')
 
 
-def _make_websocket(handler, environ):
+def _make_websocket(environ, start_response, stream):
     # all looks good, lets rock
     if environ['wsgi.websocket_version'] == 'hixie-75':
-        ws = WebSocketHixie75(handler.socket, environ, handler.rfile)
+        ws = WebSocketHixie75(environ, stream)
     elif environ['wsgi.websocket_version'] == 'hixie-76':
-        ws = WebSocketHixie76(handler.socket, environ, handler.rfile)
+        ws = WebSocketHixie76(environ, stream)
     else:
         raise exc.WebSocketError('Unknown websocket version')
 
@@ -181,8 +183,10 @@ def _make_websocket(handler, environ):
     if environ['wsgi.websocket_version'] == 'hixie-76':
         prefix = 'Sec-'
 
-    if handler.ws_url:
-        headers.append((prefix + 'WebSocket-Location', handler.ws_url))
+    ws_url = wsgi.reconstruct_url(environ)
+
+    if ws_url:
+        headers.append((prefix + 'WebSocket-Location', ws_url))
 
     if ws.protocol:
         headers.append((prefix + 'WebSocket-Protocol', ws.protocol))
@@ -190,31 +194,29 @@ def _make_websocket(handler, environ):
     if ws.origin:
         headers.append((prefix + 'WebSocket-Origin', ws.origin))
 
-    handler.start_response('101 WebSocket Protocol Handshake', headers)
+    start_response('101 WebSocket Protocol Handshake', headers)
 
 
-def upgrade_connection(handler, environ):
+def upgrade_connection(environ, start_response, stream):
     key1 = environ.get('HTTP_SEC_WEBSOCKET_KEY1', None)
     key2 = environ.get('HTTP_SEC_WEBSOCKET_KEY2', None)
 
     if key1 is None:
         environ['wsgi.websocket_version'] = 'hixie-75'
 
-        return _make_websocket(handler, environ)
+        return _make_websocket(environ, start_response, stream)
 
     if not key1:
         msg = "400: Sec-WebSocket-Key1 header is empty"
 
-        handler.log_error(msg)
-        handler.start_response('400 Bad Request', [])
+        start_response('400 Bad Request', [])
 
         return [msg]
 
     if not key2:
         msg = "400: Sec-WebSocket-Key2 header is missing/empty"
 
-        handler.log_error(msg)
-        handler.start_response('400 Bad Request', [])
+        start_response('400 Bad Request', [])
 
         return [msg]
 
@@ -224,13 +226,15 @@ def upgrade_connection(handler, environ):
     except SecKeyError, e:
         msg = unicode(e)
 
-        handler.log_error(msg)
-        handler.start_response('400 Bad Request', [])
+        start_response('400 Bad Request', [])
 
         return [msg]
 
     # This request should have 8 bytes of data in the body
-    key3 = handler.rfile.read(8)
+    try:
+        key3 = stream.read(8)
+    except Exception:
+        key3 = ''
 
     if len(key3) != 8:
         raise exc.WebSocketError('Unexpected EOF while reading key3')
@@ -240,9 +244,9 @@ def upgrade_connection(handler, environ):
 
     environ['wsgi.websocket_version'] = 'hixie-76'
 
-    _make_websocket(handler, environ)
+    _make_websocket(environ, start_response, stream)
 
-    handler.write(challenge)
+    stream.write(challenge)
 
 
 def get_key_value(key):

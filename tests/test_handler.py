@@ -5,77 +5,9 @@ except ImportError:
 
 import mock
 
-from geventwebsocket import handler as ws_handler
+from geventwebsocket import handler as ws_handler, wsgi
 
 from .util import FakeSocket
-
-
-class ResconstructUrlTestCase(unittest.TestCase):
-    """
-    Tests for `handler.reconstruct_url`
-    """
-
-    def make_environ(self, url):
-        """
-        Return a wsgi compatible environ dict based on the supplied url.
-        """
-        import urlparse
-
-        parsed_url = urlparse.urlparse(url)
-        environ = {
-            'wsgi.url_scheme': parsed_url.scheme,
-            'SERVER_NAME': parsed_url.hostname,
-            'SERVER_PORT': str(parsed_url.port or (
-                '80' if parsed_url.scheme == 'http' else '443')),
-            'PATH_INFO': parsed_url.path,
-            'QUERY_STRING': parsed_url.query,
-        }
-
-        return environ
-
-    def test_sanity(self):
-        """
-        Do a basic check to ensure sanity
-        """
-        environ = self.make_environ('http://foo.bar/my/path?x=y#z')
-
-        self.assertEqual(
-            ws_handler.reconstruct_url(environ),
-            'ws://foo.bar/my/path?x=y'
-        )
-
-    def test_secure(self):
-        """
-        https:// must result in a wss:// url
-        """
-        environ = self.make_environ('https://localhost/echo')
-
-        self.assertEqual(
-            ws_handler.reconstruct_url(environ),
-            'wss://localhost/echo'
-        )
-
-    def test_secure_diff_port(self):
-        """
-        Check the port definition for using https
-        """
-        environ = self.make_environ('https://localhost:1234/echo')
-
-        self.assertEqual(
-            ws_handler.reconstruct_url(environ),
-            'wss://localhost:1234/echo'
-        )
-
-    def testdiff_port(self):
-        """
-        Check the port definition for using http
-        """
-        environ = self.make_environ('http://localhost:1234/echo')
-
-        self.assertEqual(
-            ws_handler.reconstruct_url(environ),
-            'ws://localhost:1234/echo'
-        )
 
 
 class HandlerTestCase(unittest.TestCase):
@@ -96,6 +28,7 @@ class HandlerTestCase(unittest.TestCase):
         my_handler.process_result = mock.Mock()
         my_handler.request_version = 'HTTP/1.1'
         my_handler.headers_sent = False
+        my_handler.status = None
         # gevent 0.13.*
         my_handler.response_headers_list = []
         my_handler.result = []
@@ -115,7 +48,10 @@ class RunApplicationTestCase(HandlerTestCase):
         A request with a missing `HTTP_UPGRADE` header must not create a
         websocket.
         """
-        environ = {}
+        environ = {
+            'REQUEST_METHOD': 'GET',
+            'SERVER_PROTOCOL': 'HTTP/1.1',
+        }
         handler = self.make_handler(environ)
 
         handler.run_application()
@@ -130,7 +66,9 @@ class RunApplicationTestCase(HandlerTestCase):
         websocket.
         """
         environ = {
-            'HTTP_UPGRADE': 'WebSocket'
+            'HTTP_UPGRADE': 'WebSocket',
+            'REQUEST_METHOD': 'GET',
+            'SERVER_PROTOCOL': 'HTTP/1.1',
         }
         handler = self.make_handler(environ)
 
@@ -147,11 +85,13 @@ class RunApplicationTestCase(HandlerTestCase):
         """
         environ = {
             'HTTP_UPGRADE': 'WebSocket',
+            'REQUEST_METHOD': 'GET',
+            'SERVER_PROTOCOL': 'HTTP/1.1',
             'HTTP_CONNECTION': 'Upgrade'
         }
         handler = self.make_handler(environ)
 
-        with mock.patch.object(handler, 'upgrade_websocket') as upgrade:
+        with mock.patch.object(wsgi, 'upgrade_websocket') as upgrade:
             handler.status = '404 Not Found'
             upgrade.return_value = False
 
@@ -171,7 +111,7 @@ class RunApplicationTestCase(HandlerTestCase):
         }
         handler = self.make_handler(environ)
 
-        with mock.patch.object(handler, 'upgrade_websocket') as upgrade:
+        with mock.patch.object(wsgi, 'upgrade_websocket') as upgrade:
             upgrade.return_value = False
 
             handler.run_application()
@@ -191,7 +131,7 @@ class RunApplicationTestCase(HandlerTestCase):
         }
         handler = self.make_handler(environ)
 
-        with mock.patch.object(handler, 'upgrade_websocket') as upgrade:
+        with mock.patch.object(wsgi, 'upgrade_websocket') as upgrade:
             upgrade.return_value = True
 
             handler.code = 101
@@ -211,10 +151,9 @@ class RunApplicationTestCase(HandlerTestCase):
         When the application has been run, the websocket must be closed.
         """
         websocket = mock.Mock()
-        environ = {
+        handler = self.make_handler({
             'wsgi.websocket': websocket
-        }
-        handler = self.make_handler(environ)
+        })
 
         self.executed = False
 
@@ -233,10 +172,9 @@ class RunApplicationTestCase(HandlerTestCase):
         Even hen the application errors, the websocket must be closed.
         """
         websocket = mock.Mock()
-        environ = {
+        handler = self.make_handler({
             'wsgi.websocket': websocket
-        }
-        handler = self.make_handler(environ)
+        })
 
         class MyTestException(Exception):
             pass
@@ -263,7 +201,7 @@ class RunApplicationTestCase(HandlerTestCase):
         handler = self.make_handler(environ)
         handler.prevent_wsgi_call = True
 
-        with mock.patch.object(handler, 'upgrade_websocket') as upgrade:
+        with mock.patch.object(wsgi, 'upgrade_websocket') as upgrade:
             upgrade.return_value = True
 
             handler.code = 101
@@ -283,13 +221,9 @@ class RunApplicationTestCase(HandlerTestCase):
         Calling `start_response` with a 101 status must set default values on
         the handler.
         """
-        environ = {
-            'HTTP_UPGRADE': 'WebSocket',
-            'HTTP_CONNECTION': 'Upgrade',
+        handler = self.make_handler({
             'wsgi.websocket': object()
-        }
-
-        handler = self.make_handler(environ)
+        })
 
         handler.start_response('101 FooBar', [])
 
@@ -309,7 +243,7 @@ class RunApplicationTestCase(HandlerTestCase):
         }
         handler = self.make_handler(environ)
 
-        with mock.patch.object(handler, 'upgrade_websocket') as upgrade:
+        with mock.patch.object(wsgi, 'upgrade_websocket') as upgrade:
             from socket import error
             upgrade.side_effect = error
 
@@ -318,7 +252,7 @@ class RunApplicationTestCase(HandlerTestCase):
         self.assertFalse(handler.application.called)
 
 
-class UpgradeWebsocketTestCase(HandlerTestCase):
+class UpgradeWebsocketTestCase(unittest.TestCase):
     """
     Tests for `upgrade_websocket`
     """
@@ -328,16 +262,23 @@ class UpgradeWebsocketTestCase(HandlerTestCase):
         A request method != GET must result in a 400.
         """
         for request_method in ['POST', 'DELETE', 'PUT', 'OPTIONS', 'HEAD']:
+            self.executed = False
             environ = {
                 'REQUEST_METHOD': request_method
             }
 
-            handler = self.make_handler(environ)
+            def start_response(status, headers):
+                self.executed = True
+                self.assertEqual(status, '400 Bad Request')
+                self.assertEqual(headers, [])
 
-            result = handler.upgrade_websocket()
+            result = wsgi.upgrade_websocket(environ, start_response, None)
 
-            self.assertFalse(result)
-            self.assertEqual(handler.status, '400 Bad Request')
+            self.assertTrue(self.executed)
+            self.assertEqual(
+                result,
+                ['Unknown request method']
+            )
 
     def test_http_version(self):
         """
@@ -348,46 +289,47 @@ class UpgradeWebsocketTestCase(HandlerTestCase):
         }
 
         for version in ['HTTP/0.9', 'HTTP/1.0']:
-            handler = self.make_handler(environ)
-            handler.request_version = version
+            env = environ.copy()
+            env['SERVER_PROTOCOL'] = version
 
-            result = handler.upgrade_websocket()
+            self.executed = False
 
-            self.assertFalse(result)
-            self.assertEqual(handler.status, '400 Bad Request')
+            def start_response(status, headers):
+                self.executed = True
+                self.assertEqual(status, '400 Bad Request')
+                self.assertEqual(headers, [])
 
-    def test_missing_origin(self):
-        """
-        A missing HTTP_ORIGIN header must result in a failed upgrade_websocket.
-        """
-        environ = {
-            'REQUEST_METHOD': 'GET',
-        }
+            result = wsgi.upgrade_websocket(env, start_response, None)
 
-        handler = self.make_handler(environ)
-        result = handler.upgrade_websocket()
-
-        self.assertFalse(result)
+            self.assertEqual(
+                result,
+                ['Bad protocol version']
+            )
 
     def test_set_status(self):
         """
         Setting a status != 101 in `*.upgrade_connection` must result in a
         failure.
         """
-        from geventwebsocket import hixie
-
         environ = {
             'REQUEST_METHOD': 'GET',
             'HTTP_ORIGIN': '*'
         }
 
-        with mock.patch.object(hixie, 'upgrade_connection'):
-            handler = self.make_handler(environ)
-            handler.status = '400 Bad Request'
+        self.executed = False
 
-            result = handler.upgrade_websocket()
+        def start_response(status, headers):
+            self.executed = True
+            self.assertEqual(status, '400 Bad Request')
+            self.assertEqual(headers, [])
 
-            self.assertFalse(result)
+        result = wsgi.upgrade_websocket(environ, start_response, None)
+
+        self.assertTrue(self.executed)
+        self.assertEqual(
+            result,
+            ['Bad protocol version']
+        )
 
     def test_upgrade(self):
         """
@@ -402,8 +344,14 @@ class UpgradeWebsocketTestCase(HandlerTestCase):
         }
 
         with mock.patch.object(hixie, 'upgrade_connection'):
-            handler = self.make_handler(environ)
+            self.executed = False
 
-            result = handler.upgrade_websocket()
+            def start_response(status, headers):
+                self.executed = True
+                self.assertEqual(status, '400 Bad Request')
+                self.assertEqual(headers, [])
 
+            result = wsgi.upgrade_websocket(environ, start_response, None)
+
+            self.assertTrue(self.executed)
             self.assertTrue(result)
