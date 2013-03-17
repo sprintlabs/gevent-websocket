@@ -9,9 +9,10 @@ Or with an Gunicorn wrapper:
         plot_graph:app
 """
 
-import gevent
+import os.path
 import random
 
+import gevent
 from gevent import pywsgi
 from geventwebsocket.handler import WebSocketHandler
 
@@ -21,7 +22,6 @@ def handle(ws):
     This is the websocket handler function. Note that we can dispatch based on
     path in here, too.
     """
-
     if ws.path == "/echo":
         while True:
             m = ws.receive()
@@ -39,7 +39,10 @@ def app(environ, start_response):
     if environ["PATH_INFO"] == "/":
         start_response("200 OK", [("Content-Type", "text/html")])
 
-        return open("plot_graph.html").readlines()
+        base_dir = os.path.dirname(__file__)
+
+        with open(os.path.join(base_dir, 'plot_graph.html'), 'rt') as fp:
+            return fp.readlines()
 
     elif environ["PATH_INFO"] in ("/data", "/echo"):
         handle(environ["wsgi.websocket"])
@@ -58,4 +61,3 @@ if __name__ == "__main__":
         server.serve_forever()
     except KeyboardInterrupt:
         pass
-
