@@ -14,6 +14,8 @@ import random
 
 import gevent
 from gevent import pywsgi
+
+import geventwebsocket
 from geventwebsocket.handler import WebSocketHandler
 
 
@@ -30,9 +32,12 @@ def handle(ws):
             ws.send(m)
 
     elif ws.path == "/data":
-        for i in xrange(10000):
-            ws.send("0 %s %s\n" % (i, random.random()))
-            gevent.sleep(0.1)
+        try:
+            for i in xrange(10000):
+                ws.send("0 %s %s\n" % (i, random.random()))
+                gevent.sleep(0.1)
+        except geventwebsocket.WebSocketError as ex:
+            print "%s: %s" % (ex.__class__.__name__, ex)
 
 
 def app(environ, start_response):
