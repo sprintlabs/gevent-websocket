@@ -91,17 +91,7 @@ class WebSocketHandler(WSGIHandler):
         writer = super(WebSocketHandler, self).start_response(
             status, headers, exc_info=exc_info)
 
-        assert not self.headers_sent
-
-        if self.websocket:
-            # so that `finalize_headers` doesn't write a Content-Length header
-            self.provided_content_length = False
-            # the websocket is now controlling the response
-            self.response_use_chunked = False
-            # once the request is over, the connection must be closed
-            self.close_connection = True
-            # prevents the Date header from being written
-            self.provided_date = True
+        prepare_response(self)
 
         return writer
 
@@ -122,3 +112,26 @@ class Stream(object):
         self.handler = handler
         self.read = handler.rfile.read
         self.write = handler.socket.sendall
+
+
+def prepare_response(handler):
+    """
+    Sets up the ``pywsgi.Handler`` to work with a websocket response.
+
+    This is used by other projects that need to support WebSocket connections
+    as part of a larger effort.
+    """
+    assert not handler.headers_sent
+
+    if not handler.environ.get('wsgi.websocket'):
+        # a WebSocket connection is not established, do nothing
+        return
+
+    # so that `finalize_headers` doesn't write a Content-Length header
+    handler.provided_content_length = False
+    # the websocket is now controlling the response
+    handler.response_use_chunked = False
+    # once the request is over, the connection must be closed
+    handler.close_connection = True
+    # prevents the Date header from being written
+    handler.provided_date = True
